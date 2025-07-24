@@ -9,11 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { YandexMap } from '@/components/YandexMap'
 import { PropertyCard } from '@/components/PropertyCard'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
-import { signOut } from '@/lib/supabase'
+import { Navigation } from '@/components/Navigation'
+import { Breadcrumb } from '@/components/Breadcrumb'
 import { sampleProperties, type Property } from '@/lib/sampleData'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import toast from 'react-hot-toast'
 
 export default function UserDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -23,15 +22,7 @@ export default function UserDashboard() {
   const [showMap, setShowMap] = useState(false)
   const router = useRouter()
 
-  const handleLogout = async () => {
-    try {
-      await signOut()
-      toast.success('Logged out successfully')
-      router.push('/auth/login')
-    } catch (error: any) {
-      toast.error('Error logging out')
-    }
-  }
+
 
   const handleSearch = async () => {
     setLoading(true)
@@ -63,46 +54,11 @@ export default function UserDashboard() {
   return (
     <ProtectedRoute requiredRole="tenant">
       <div className="min-h-screen bg-nestie-grey-50">
-      {/* Header */}
-      <header className="bg-nestie-white border-b border-nestie-grey-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="flex items-center space-x-2">
-              <div className="h-8 w-8 bg-nestie-black rounded-lg flex items-center justify-center">
-                <span className="text-nestie-white font-bold text-sm">N</span>
-              </div>
-              <span className="text-xl font-bold text-nestie-black">Nestie</span>
-            </Link>
-            
-            <nav className="flex items-center space-x-4">
-              <Link href="/tenant/portal">
-                <Button variant="ghost" size="sm">
-                  <Home className="h-4 w-4 mr-2" />
-                  My Rentals
-                </Button>
-              </Link>
-              <Link href="/messages">
-                <Button variant="ghost" size="sm">
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Messages
-                </Button>
-              </Link>
-              <Button variant="ghost" size="sm">
-                <Heart className="h-4 w-4 mr-2" />
-                Saved
-              </Button>
-              <Button variant="ghost" size="sm">
-                Profile
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                Logout
-              </Button>
-            </nav>
-          </div>
-        </div>
-      </header>
+      <Navigation userRole="tenant" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Breadcrumb items={[{ label: 'Property Search' }]} />
+        
         {/* Search Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

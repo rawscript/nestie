@@ -1,9 +1,19 @@
 import './globals.css'
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Playfair_Display } from 'next/font/google'
 import { Toaster } from 'react-hot-toast'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ 
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap'
+})
+
+const playfair = Playfair_Display({ 
+  subsets: ['latin'],
+  variable: '--font-playfair',
+  display: 'swap'
+})
 
 export const metadata: Metadata = {
   title: 'Nestie - Modern Real Estate Platform',
@@ -19,7 +29,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} min-h-screen bg-nestie-white antialiased`}>
+      <body className={`${inter.variable} ${playfair.variable} min-h-screen bg-nestie-white antialiased`}>
         {children}
         <Toaster
           position="top-right"

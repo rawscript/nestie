@@ -18,10 +18,9 @@ import {
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
-import { signOut } from '@/lib/supabase'
+import { Navigation } from '@/components/Navigation'
 import { sampleProperties, sampleBookings, type Property, type Booking } from '@/lib/sampleData'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 
 export default function AgentDashboard() {
@@ -33,17 +32,7 @@ export default function AgentDashboard() {
     monthlyRevenue: 0,
     pendingBookings: 0
   })
-  const router = useRouter()
 
-  const handleLogout = async () => {
-    try {
-      await signOut()
-      toast.success('Logged out successfully')
-      router.push('/auth/login')
-    } catch (error: any) {
-      toast.error('Error logging out')
-    }
-  }
 
   useEffect(() => {
     // Load comprehensive sample data
@@ -76,40 +65,7 @@ export default function AgentDashboard() {
   return (
     <ProtectedRoute requiredRole="agent">
       <div className="min-h-screen bg-nestie-grey-50">
-      {/* Header */}
-      <header className="bg-nestie-white border-b border-nestie-grey-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="flex items-center space-x-2">
-              <div className="h-8 w-8 bg-nestie-black rounded-lg flex items-center justify-center">
-                <span className="text-nestie-white font-bold text-sm">N</span>
-              </div>
-              <span className="text-xl font-bold text-nestie-black">Nestie Agent</span>
-            </Link>
-
-            <nav className="flex items-center space-x-4">
-              <Link href="/agent/properties/add">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Property
-                </Button>
-              </Link>
-              <Link href="/messages">
-                <Button variant="ghost" size="sm">
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Messages
-                </Button>
-              </Link>
-              <Button variant="ghost" size="sm">
-                Profile
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                Logout
-              </Button>
-            </nav>
-          </div>
-        </div>
-      </header>
+      <Navigation userRole="agent" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Overview */}

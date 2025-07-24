@@ -353,65 +353,16 @@ export default function AddPropertyPage() {
                         </Card>
                     </motion.div>
 
-                    {/* Images */}
+                    {/* Images with Room Labels */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.4 }}
                     >
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Property Images</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="border-2 border-dashed border-nestie-grey-300 rounded-lg p-6 text-center">
-                                    <Upload className="h-12 w-12 text-nestie-grey-400 mx-auto mb-4" />
-                                    <p className="text-nestie-grey-600 mb-2">Upload property images</p>
-                                    <p className="text-sm text-nestie-grey-500 mb-4">
-                                        Drag and drop files here, or click to select files
-                                    </p>
-                                    <input
-                                        type="file"
-                                        multiple
-                                        accept="image/*"
-                                        onChange={handleImageUpload}
-                                        className="hidden"
-                                        id="image-upload"
-                                    />
-                                    <label htmlFor="image-upload">
-                                        <Button type="button" variant="outline" className="cursor-pointer">
-                                            Select Images
-                                        </Button>
-                                    </label>
-                                </div>
-
-                                {formData.images.length > 0 && (
-                                    <div className="mt-4">
-                                        <h4 className="text-sm font-medium text-nestie-grey-700 mb-2">
-                                            Selected Images ({formData.images.length})
-                                        </h4>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            {formData.images.map((file, index) => (
-                                                <div key={index} className="relative">
-                                                    <div className="aspect-square bg-nestie-grey-200 rounded-lg flex items-center justify-center">
-                                                        <span className="text-xs text-nestie-grey-500 text-center p-2">
-                                                            {file.name}
-                                                        </span>
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeImage(index)}
-                                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                                                    >
-                                                        <X className="h-3 w-3" />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
+                        <ImageUpload
+                            onImagesChange={handleImagesChange}
+                            maxImages={15}
+                        />
                     </motion.div>
 
                     {/* Submit */}
