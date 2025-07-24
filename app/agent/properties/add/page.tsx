@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { ImageUpload, type LabeledImage } from '@/components/ImageUpload'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
@@ -36,7 +37,7 @@ interface PropertyFormData {
         lng: number
     }
     amenities: string[]
-    images: File[]
+    images: LabeledImage[]
 }
 
 export default function AddPropertyPage() {
@@ -84,18 +85,10 @@ export default function AddPropertyPage() {
         }
     }
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || [])
+    const handleImagesChange = (images: LabeledImage[]) => {
         setFormData(prev => ({
             ...prev,
-            images: [...prev.images, ...files]
-        }))
-    }
-
-    const removeImage = (index: number) => {
-        setFormData(prev => ({
-            ...prev,
-            images: prev.images.filter((_, i) => i !== index)
+            images
         }))
     }
 

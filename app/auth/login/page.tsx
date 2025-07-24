@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { signIn } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 
@@ -24,26 +24,23 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) {
-        toast.error(error.message)
-        return
-      }
-
-      toast.success('Welcome back!')
+      const data = await signIn(email, password)
       
-      // Redirect based on user type
-      if (userType === 'agent') {
-        router.push('/agent/dashboard')
-      } else {
-        router.push('/dashboard')
+      if (data.user) {
+        toast.success('Welcome back!')
+        
+        // Get user metadata to determine role
+        const userRole = data.user.user_metadata?.role || userType
+        
+        // Redirect based on user role
+        if (userRole === 'agent') {
+          router.push('/agent/dashboard')
+        } else {
+          router.push('/dashboard')
+        }
       }
-    } catch (error) {
-      toast.error('An error occurred during login')
+    } catch (error: any) {
+      toast.error(error.message || 'An error occurred during login')
     } finally {
       setLoading(false)
     }
@@ -166,8 +163,11 @@ export default function LoginPage() {
         >
           <h3 className="text-sm font-medium text-nestie-black mb-2">Demo Credentials</h3>
           <div className="text-xs text-nestie-grey-600 space-y-1">
-            <p><strong>Tenant:</strong> tenant@nestie.com / password123</p>
-            <p><strong>Agent:</strong> agent@nestie.com / password123</p>
+            <p><strong>Tenant:</strong> tenant@demo.com / demo123</p>
+            <p><strong>Agent:</strong> agent@demo.com / demo123</p>
+          </div>
+          <div className="mt-2 text-xs text-nestie-grey-500">
+            <p>Or create a new account with any email/password</p>
           </div>
         </motion.div>
       </motion.div>

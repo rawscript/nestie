@@ -1,6 +1,7 @@
 {
-  "/dashboard/page": "app/dashboard/page.js",
-  "/messages/page": "app/messages/page.js",
+  "/agent/dashboard/page": "app/agent/dashboard/page.js",
+  "/tenant/portal/page": "app/tenant/portal/page.js",
   "/page": "app/page.js",
-  "/tenant/portal/page": "app/tenant/portal/page.js"
+  "/agent/properties/add/page": "app/agent/properties/add/page.js",
+  "/messages/page": "app/messages/page.js"
 }

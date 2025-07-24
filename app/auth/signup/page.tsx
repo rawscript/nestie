@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { signUp } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 
@@ -48,27 +48,25 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            full_name: formData.fullName,
-            phone: formData.phone,
-            role: userType
-          }
-        }
+      const data = await signUp(formData.email, formData.password, {
+        full_name: formData.fullName,
+        phone: formData.phone,
+        role: userType
       })
 
-      if (error) {
-        toast.error(error.message)
-        return
+      if (data.user) {
+        toast.success('Account created successfully!')
+        
+        // For demo purposes, redirect immediately without email verification
+        // In production, you'd want to verify email first
+        if (userType === 'agent') {
+          router.push('/agent/dashboard')
+        } else {
+          router.push('/dashboard')
+        }
       }
-
-      toast.success('Account created successfully! Please check your email to verify your account.')
-      router.push('/auth/login')
-    } catch (error) {
-      toast.error('An error occurred during signup')
+    } catch (error: any) {
+      toast.error(error.message || 'An error occurred during signup')
     } finally {
       setLoading(false)
     }

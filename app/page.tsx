@@ -20,16 +20,24 @@ export default function LandingPage() {
               <span className="text-2xl font-bold text-nestie-black">Nestie</span>
             </motion.div>
             
-            <nav className="hidden md:flex space-x-8">
+            <nav className="hidden md:flex items-center space-x-6">
               <Link href="#features" className="text-nestie-grey-600 hover:text-nestie-black transition-colors">
                 Features
               </Link>
               <Link href="#how-it-works" className="text-nestie-grey-600 hover:text-nestie-black transition-colors">
                 How it Works
               </Link>
-              <Link href="/auth/login" className="text-nestie-grey-600 hover:text-nestie-black transition-colors">
-                Sign In
-              </Link>
+              <div className="flex items-center space-x-3">
+                <Link href="/auth/login" className="text-nestie-grey-600 hover:text-nestie-black transition-colors">
+                  Sign In
+                </Link>
+                <Link 
+                  href="/auth/signup"
+                  className="px-4 py-2 bg-nestie-black text-nestie-white rounded-lg hover:bg-nestie-grey-800 transition-colors"
+                >
+                  Get Started
+                </Link>
+              </div>
             </nav>
           </div>
         </div>
@@ -61,14 +69,28 @@ export default function LandingPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
+            className="space-y-6"
           >
-            <Link 
-              href="/dashboard"
-              className="inline-flex items-center px-8 py-4 bg-nestie-black text-nestie-white font-semibold rounded-lg hover:bg-nestie-grey-800 transition-colors"
-            >
-              Try Nestie Homes
-              <Search className="ml-2 h-5 w-5" />
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link 
+                href="/dashboard"
+                className="inline-flex items-center justify-center px-8 py-4 bg-nestie-black text-nestie-white font-semibold rounded-lg hover:bg-nestie-grey-800 transition-colors"
+              >
+                <Search className="mr-2 h-5 w-5" />
+                Find Properties
+              </Link>
+              <Link 
+                href="/auth/signup?role=agent"
+                className="inline-flex items-center justify-center px-8 py-4 border border-nestie-grey-300 text-nestie-black font-semibold rounded-lg hover:bg-nestie-grey-50 transition-colors"
+              >
+                <Home className="mr-2 h-5 w-5" />
+                List Properties
+              </Link>
+            </div>
+            <p className="text-sm text-nestie-grey-400">
+              Looking for a home? <Link href="/dashboard" className="text-nestie-black hover:underline">Browse properties</Link> • 
+              Property owner? <Link href="/auth/signup?role=agent" className="text-nestie-black hover:underline">Become an agent</Link>
+            </p>
           </motion.div>
         </div>
       </section>
@@ -134,25 +156,41 @@ export default function LandingPage() {
             viewport={{ once: true }}
           >
             <h2 className="text-3xl md:text-4xl font-bold text-nestie-black mb-6">
-              Ready to Find Your Dream Home?
+              Ready to Get Started?
             </h2>
             <p className="text-nestie-grey-500 text-lg mb-8">
-              Join thousands of users who trust Nestie for their real estate needs.
+              Choose your path and join thousands who trust Nestie for their real estate needs.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link 
-                href="/dashboard"
-                className="inline-flex items-center justify-center px-8 py-4 bg-nestie-black text-nestie-white font-semibold rounded-lg hover:bg-nestie-grey-800 transition-colors"
-              >
-                Get Started
-              </Link>
-              <Link 
-                href="/auth/signup"
-                className="inline-flex items-center justify-center px-8 py-4 border border-nestie-grey-300 text-nestie-black font-semibold rounded-lg hover:bg-nestie-grey-50 transition-colors"
-              >
-                Create Account
-              </Link>
+            
+            <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto mb-8">
+              <div className="bg-nestie-white border border-nestie-grey-200 rounded-lg p-6 text-left">
+                <Search className="h-8 w-8 text-nestie-black mb-4" />
+                <h3 className="text-xl font-semibold text-nestie-black mb-2">I'm Looking for a Home</h3>
+                <p className="text-nestie-grey-500 mb-4">Browse properties, schedule viewings, and find your perfect rental.</p>
+                <Link 
+                  href="/dashboard"
+                  className="inline-flex items-center justify-center w-full px-6 py-3 bg-nestie-black text-nestie-white font-semibold rounded-lg hover:bg-nestie-grey-800 transition-colors"
+                >
+                  Start Searching
+                </Link>
+              </div>
+              
+              <div className="bg-nestie-white border border-nestie-grey-200 rounded-lg p-6 text-left">
+                <Home className="h-8 w-8 text-nestie-black mb-4" />
+                <h3 className="text-xl font-semibold text-nestie-black mb-2">I Have Properties to Rent</h3>
+                <p className="text-nestie-grey-500 mb-4">List your properties, manage tenants, and grow your rental business.</p>
+                <Link 
+                  href="/auth/signup?role=agent"
+                  className="inline-flex items-center justify-center w-full px-6 py-3 border border-nestie-grey-300 text-nestie-black font-semibold rounded-lg hover:bg-nestie-grey-50 transition-colors"
+                >
+                  Become an Agent
+                </Link>
+              </div>
             </div>
+            
+            <p className="text-sm text-nestie-grey-400">
+              Already have an account? <Link href="/auth/login" className="text-nestie-black hover:underline">Sign in here</Link>
+            </p>
           </motion.div>
         </div>
       </section>

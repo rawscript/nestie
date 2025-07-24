@@ -7,26 +7,13 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { YandexMap } from '@/components/YandexMap'
-import { supabase } from '@/lib/supabase'
+import { PropertyCard } from '@/components/PropertyCard'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { signOut } from '@/lib/supabase'
+import { sampleProperties, type Property } from '@/lib/sampleData'
 import Link from 'next/link'
-
-interface Property {
-  id: string
-  title: string
-  description: string
-  price: number
-  type: 'rent' | 'sale'
-  bedrooms: number
-  bathrooms: number
-  area: number
-  location: {
-    address: string
-    lat: number
-    lng: number
-  }
-  images: string[]
-  agent_id: string
-}
+import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 
 export default function UserDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -34,58 +21,48 @@ export default function UserDashboard() {
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(false)
   const [showMap, setShowMap] = useState(false)
+  const router = useRouter()
 
-  // Mock properties for demo
-  const mockProperties: Property[] = [
-    {
-      id: '1',
-      title: 'Modern 2BR Apartment',
-      description: 'Beautiful modern apartment with city views',
-      price: 85000,
-      type: 'rent',
-      bedrooms: 2,
-      bathrooms: 2,
-      area: 1200,
-      location: {
-        address: 'Westlands, Nairobi',
-        lat: -1.2676,
-        lng: 36.8108
-      },
-      images: ['/api/placeholder/400/300'],
-      agent_id: 'agent1'
-    },
-    {
-      id: '2',
-      title: 'Luxury Villa',
-      description: 'Spacious villa with garden and pool',
-      price: 12000000,
-      type: 'sale',
-      bedrooms: 4,
-      bathrooms: 3,
-      area: 2500,
-      location: {
-        address: 'Karen, Nairobi',
-        lat: -1.3194,
-        lng: 36.7085
-      },
-      images: ['/api/placeholder/400/300'],
-      agent_id: 'agent2'
+  const handleLogout = async () => {
+    try {
+      await signOut()
+      toast.success('Logged out successfully')
+      router.push('/auth/login')
+    } catch (error: any) {
+      toast.error('Error logging out')
     }
-  ]
+  }
 
   const handleSearch = async () => {
     setLoading(true)
     setShowMap(true)
     
-    // Simulate API call
+    // Simulate API call with comprehensive sample data
     setTimeout(() => {
-      setProperties(mockProperties)
+      // Filter properties based on search query and location
+      let filteredProperties = sampleProperties
+      
+      if (searchQuery) {
+        filteredProperties = filteredProperties.filter(property =>
+          property.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          property.description.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      }
+      
+      if (location) {
+        filteredProperties = filteredProperties.filter(property =>
+          property.location.address.toLowerCase().includes(location.toLowerCase())
+        )
+      }
+      
+      setProperties(filteredProperties)
       setLoading(false)
     }, 1000)
   }
 
   return (
-    <div className="min-h-screen bg-nestie-grey-50">
+    <ProtectedRoute requiredRole="tenant">
+      <div className="min-h-screen bg-nestie-grey-50">
       {/* Header */}
       <header className="bg-nestie-white border-b border-nestie-grey-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -116,6 +93,9 @@ export default function UserDashboard() {
               </Button>
               <Button variant="ghost" size="sm">
                 Profile
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                Logout
               </Button>
             </nav>
           </div>
@@ -206,54 +186,7 @@ export default function UserDashboard() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  <Link href={`/property/${property.id}`}>
-                    <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
-                      <div className="aspect-video bg-nestie-grey-200 relative">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Eye className="h-8 w-8 text-nestie-grey-400" />
-                        </div>
-                        <div className="absolute top-2 right-2">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 bg-nestie-white/80">
-                            <Heart className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <h3 className="font-semibold text-nestie-black">{property.title}</h3>
-                          <span className="text-lg font-bold text-nestie-black">
-                            KSh {property.price.toLocaleString()}
-                            {property.type === 'rent' && '/month'}
-                          </span>
-                        </div>
-                        
-                        <p className="text-sm text-nestie-grey-500 mb-3">{property.description}</p>
-                        
-                        <div className="flex items-center text-sm text-nestie-grey-600 mb-3">
-                          <MapPin className="h-4 w-4 mr-1" />
-                          {property.location.address}
-                        </div>
-                        
-                        <div className="flex justify-between items-center text-sm text-nestie-grey-600 mb-4">
-                          <span>{property.bedrooms} bed</span>
-                          <span>{property.bathrooms} bath</span>
-                          <span>{property.area} sqft</span>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          <Button size="sm" className="flex-1">
-                            <MessageCircle className="h-4 w-4 mr-1" />
-                            Message
-                          </Button>
-                          <Button variant="outline" size="sm" className="flex-1">
-                            <Calendar className="h-4 w-4 mr-1" />
-                            Visit
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
+                  <PropertyCard property={property} />
                 </motion.div>
               ))}
             </div>
@@ -278,5 +211,6 @@ export default function UserDashboard() {
         )}
       </div>
     </div>
+    </ProtectedRoute>
   )
 }

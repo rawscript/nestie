@@ -17,37 +17,12 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { signOut } from '@/lib/supabase'
+import { sampleProperties, sampleBookings, type Property, type Booking } from '@/lib/sampleData'
 import Link from 'next/link'
-
-interface Property {
-  id: string
-  title: string
-  description: string
-  price: number
-  type: 'rent' | 'sale'
-  status: 'available' | 'occupied' | 'sold'
-  bedrooms: number
-  bathrooms: number
-  area: number
-  location: {
-    address: string
-    lat: number
-    lng: number
-  }
-  images: string[]
-  created_at: string
-}
-
-interface Booking {
-  id: string
-  property_id: string
-  user_name: string
-  user_email: string
-  status: 'pending' | 'approved' | 'rejected'
-  visit_date: string
-  message: string
-  created_at: string
-}
+import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 
 export default function AgentDashboard() {
   const [properties, setProperties] = useState<Property[]>([])
@@ -58,69 +33,35 @@ export default function AgentDashboard() {
     monthlyRevenue: 0,
     pendingBookings: 0
   })
+  const router = useRouter()
 
-  // Mock data for demo
-  const mockProperties: Property[] = [
-    {
-      id: '1',
-      title: 'Modern 2BR Apartment',
-      description: 'Beautiful modern apartment with city views',
-      price: 85000,
-      type: 'rent',
-      status: 'occupied',
-      bedrooms: 2,
-      bathrooms: 2,
-      area: 1200,
-      location: {
-        address: 'Westlands, Nairobi',
-        lat: -1.2676,
-        lng: 36.8108
-      },
-      images: ['/api/placeholder/400/300'],
-      created_at: '2024-01-15'
-    },
-    {
-      id: '2',
-      title: 'Luxury Villa',
-      description: 'Spacious villa with garden and pool',
-      price: 12000000,
-      type: 'sale',
-      status: 'available',
-      bedrooms: 4,
-      bathrooms: 3,
-      area: 2500,
-      location: {
-        address: 'Karen, Nairobi',
-        lat: -1.3194,
-        lng: 36.7085
-      },
-      images: ['/api/placeholder/400/300'],
-      created_at: '2024-01-10'
+  const handleLogout = async () => {
+    try {
+      await signOut()
+      toast.success('Logged out successfully')
+      router.push('/auth/login')
+    } catch (error: any) {
+      toast.error('Error logging out')
     }
-  ]
-
-  const mockBookings: Booking[] = [
-    {
-      id: '1',
-      property_id: '2',
-      user_name: 'John Doe',
-      user_email: 'john@example.com',
-      status: 'pending',
-      visit_date: '2024-02-15',
-      message: 'Interested in viewing this property this weekend.',
-      created_at: '2024-01-20'
-    }
-  ]
+  }
 
   useEffect(() => {
-    // Load mock data
-    setProperties(mockProperties)
-    setBookings(mockBookings)
+    // Load comprehensive sample data
+    const agentProperties = sampleProperties.filter(p => p.agent_id === 'agent1') // Show properties for current agent
+    setProperties(agentProperties)
+    setBookings(sampleBookings)
+    
+    // Calculate stats
+    const occupiedCount = agentProperties.filter(p => p.status === 'occupied').length
+    const monthlyRevenue = agentProperties
+      .filter(p => p.type === 'rent' && p.status === 'occupied')
+      .reduce((sum, p) => sum + p.price, 0)
+    
     setStats({
-      totalProperties: mockProperties.length,
-      occupiedProperties: mockProperties.filter(p => p.status === 'occupied').length,
-      monthlyRevenue: 85000,
-      pendingBookings: mockBookings.filter(b => b.status === 'pending').length
+      totalProperties: agentProperties.length,
+      occupiedProperties: occupiedCount,
+      monthlyRevenue,
+      pendingBookings: sampleBookings.filter(b => b.status === 'pending').length
     })
   }, [])
 
@@ -133,7 +74,8 @@ export default function AgentDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-nestie-grey-50">
+    <ProtectedRoute requiredRole="agent">
+      <div className="min-h-screen bg-nestie-grey-50">
       {/* Header */}
       <header className="bg-nestie-white border-b border-nestie-grey-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -160,6 +102,9 @@ export default function AgentDashboard() {
               </Link>
               <Button variant="ghost" size="sm">
                 Profile
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                Logout
               </Button>
             </nav>
           </div>
@@ -387,5 +332,6 @@ export default function AgentDashboard() {
         </div>
       </div>
     </div>
+    </ProtectedRoute>
   )
 }
