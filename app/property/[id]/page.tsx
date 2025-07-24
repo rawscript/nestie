@@ -1,16 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  ArrowLeft, 
-  Heart, 
-  Share2, 
-  MapPin, 
-  Bed, 
-  Bath, 
-  Square, 
-  Calendar, 
+import {
+  ArrowLeft,
+  Heart,
+  Share2,
+  MapPin,
+  Bed,
+  Bath,
+  Square,
+  Calendar,
   MessageCircle,
   Phone,
   Mail,
@@ -110,7 +111,7 @@ export default function PropertyDetailPage() {
     const foundProperty = sampleProperties.find(p => p.id === params.id)
     if (foundProperty) {
       setProperty(foundProperty)
-      
+
       // Find agent
       const foundAgent = sampleAgents.find(a => a.id === foundProperty.agent_id)
       setAgent(foundAgent)
@@ -190,9 +191,9 @@ export default function PropertyDetailPage() {
               <Button variant="ghost" size="sm" onClick={handleShare}>
                 <Share2 className="h-4 w-4" />
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={toggleFavorite}
                 className={isFavorite ? 'text-red-500' : ''}
               >
@@ -222,7 +223,7 @@ export default function PropertyDetailPage() {
                       onClick={() => setShowImageModal(true)}
                     />
                   )}
-                  
+
                   {/* Navigation Arrows */}
                   {currentImages.length > 1 && (
                     <>
@@ -258,7 +259,7 @@ export default function PropertyDetailPage() {
                     {availableCategories.map(category => {
                       const Icon = ROOM_ICONS[category as keyof typeof ROOM_ICONS]
                       const images = getImagesForCategory(category)
-                      
+
                       return (
                         <button
                           key={category}
@@ -266,11 +267,10 @@ export default function PropertyDetailPage() {
                             setSelectedImageCategory(category)
                             setSelectedImageIndex(0)
                           }}
-                          className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            selectedImageCategory === category
-                              ? 'bg-nestie-black text-nestie-white'
-                              : 'bg-nestie-grey-100 text-nestie-grey-700 hover:bg-nestie-grey-200'
-                          }`}
+                          className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedImageCategory === category
+                            ? 'bg-nestie-black text-nestie-white'
+                            : 'bg-nestie-grey-100 text-nestie-grey-700 hover:bg-nestie-grey-200'
+                            }`}
                         >
                           <Icon className="h-4 w-4 mr-2" />
                           {ROOM_LABELS[category as keyof typeof ROOM_LABELS]} ({images.length})
@@ -285,11 +285,10 @@ export default function PropertyDetailPage() {
                       <button
                         key={index}
                         onClick={() => setSelectedImageIndex(index)}
-                        className={`flex-shrink-0 w-20 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
-                          selectedImageIndex === index
-                            ? 'border-nestie-black'
-                            : 'border-nestie-grey-300 hover:border-nestie-grey-400'
-                        }`}
+                        className={`flex-shrink-0 w-20 h-16 rounded-lg overflow-hidden border-2 transition-colors ${selectedImageIndex === index
+                          ? 'border-nestie-black'
+                          : 'border-nestie-grey-300 hover:border-nestie-grey-400'
+                          }`}
                       >
                         <img
                           src={image.url}

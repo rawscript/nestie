@@ -23,7 +23,21 @@ import {
     Shield,
     Eye,
     EyeOff,
-    Save
+    Save,
+    Search,
+    MapPin,
+    Bed,
+    Bath,
+    Car,
+    Wifi,
+    Waves,
+    Building,
+    Filter,
+    Grid,
+    List,
+    Heart,
+    Share,
+    Star
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
@@ -73,6 +87,70 @@ export default function TenantPortal() {
         new: '',
         confirm: ''
     })
+
+    // Enhanced search functionality state
+    const [searchProperties, setSearchProperties] = useState<any[]>([])
+    const [searchQuery, setSearchQuery] = useState('')
+    const [keywordDescription, setKeywordDescription] = useState('')
+    const [searchFilters, setSearchFilters] = useState({
+        priceRange: { min: '', max: '' },
+        propertyType: 'all', // all, apartment, house, commercial
+        bedrooms: 'any', // any, 1, 2, 3, 4+
+        bathrooms: 'any', // any, 1, 2, 3, 4+
+        location: '',
+        region: '',
+        estate: '',
+        amenities: {
+            wifi: false,
+            pool: false,
+            gym: false,
+            security: false,
+            parking: false,
+            furnished: false,
+            balcony: false,
+            garden: false,
+            nearCBD: false,
+            spacious: false
+        }
+    })
+    const [searchViewMode, setSearchViewMode] = useState<'grid' | 'list'>('grid')
+    const [searchLoading, setSearchLoading] = useState(false)
+    const [selectedProperty, setSelectedProperty] = useState<any>(null)
+    const [showPropertyModal, setShowPropertyModal] = useState(false)
+    const [favoriteProperties, setFavoriteProperties] = useState<string[]>([])
+    const [showInterestModal, setShowInterestModal] = useState(false)
+    const [interestProperty, setInterestProperty] = useState<any>(null)
+
+    // Booking and payment flow state
+    const [showBookingModal, setShowBookingModal] = useState(false)
+    const [bookingProperty, setBookingProperty] = useState<any>(null)
+    const [bookingStep, setBookingStep] = useState<'details' | 'payment' | 'confirmation'>('details')
+    const [bookingDetails, setBookingDetails] = useState({
+        moveInDate: '',
+        leasePeriod: '12',
+        specialRequests: ''
+    })
+    const [depositPayment, setDepositPayment] = useState({
+        amount: '',
+        paymentMethod: 'tinympesa',
+        mpesaPhone: '',
+        cardDetails: {
+            number: '',
+            expiry: '',
+            cvv: '',
+            name: ''
+        }
+    })
+    const [processingBooking, setProcessingBooking] = useState(false)
+    const [bookingStatus, setBookingStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null)
+
+    // Payment reminders and notifications
+    const [paymentReminders, setPaymentReminders] = useState<any[]>([])
+    const [upcomingPayments, setUpcomingPayments] = useState<any[]>([])
+    const [overduePayments, setOverduePayments] = useState<any[]>([])
+
+    // Saved properties and favorites
+    const [savedProperties, setSavedProperties] = useState<any[]>([])
 
     useEffect(() => {
         if (!user) {
@@ -294,6 +372,406 @@ export default function TenantPortal() {
         )
     }
 
+    // Enhanced search functionality with natural language processing - connects to agent listings
+    const searchForProperties = async () => {
+        setSearchLoading(true)
+        try {
+            const searchParams = {
+                query: searchQuery,
+                keywordDescription: keywordDescription,
+                filters: searchFilters,
+                naturalLanguageSearch: true,
+                status: 'available', // Only show available properties from agents
+                includeAgentInfo: true // Include agent contact details
+            }
+
+            const response = await fetch('/api/properties/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(searchParams)
+            })
+
+            if (!response.ok) throw new Error('Search failed')
+
+            const { data } = await response.json()
+            // Filter to ensure we only show agent-created listings that are available
+            const agentListings = data?.filter((property: any) =>
+                property.agent_id &&
+                property.status === 'available' &&
+                property.created_by_agent === true
+            ) || []
+
+            setSearchProperties(agentListings)
+        } catch (error) {
+            console.error('Search error:', error)
+            toast.error('Failed to search properties')
+            setSearchProperties([])
+        } finally {
+            setSearchLoading(false)
+        }
+    }
+
+    // Smart keyword parsing for natural language search
+    const parseKeywordDescription = (description: string) => {
+        const keywords = description.toLowerCase()
+        const updatedAmenities = { ...searchFilters.amenities }
+
+        // Parse common keywords
+        if (keywords.includes('spacious') || keywords.includes('large')) updatedAmenities.spacious = true
+        if (keywords.includes('balcony')) updatedAmenities.balcony = true
+        if (keywords.includes('garden') || keywords.includes('yard')) updatedAmenities.garden = true
+        if (keywords.includes('cbd') || keywords.includes('central')) updatedAmenities.nearCBD = true
+        if (keywords.includes('wifi') || keywords.includes('internet')) updatedAmenities.wifi = true
+        if (keywords.includes('pool') || keywords.includes('swimming')) updatedAmenities.pool = true
+        if (keywords.includes('gym') || keywords.includes('fitness')) updatedAmenities.gym = true
+        if (keywords.includes('security') || keywords.includes('secure')) updatedAmenities.security = true
+        if (keywords.includes('parking') || keywords.includes('garage')) updatedAmenities.parking = true
+        if (keywords.includes('furnished')) updatedAmenities.furnished = true
+
+        setSearchFilters(prev => ({ ...prev, amenities: updatedAmenities }))
+    }
+
+    // Booking and payment flow functions
+    const handleBookNow = (property: any) => {
+        setBookingProperty(property)
+        setBookingStep('details')
+        setDepositPayment(prev => ({
+            ...prev,
+            amount: property.terms?.deposit || (property.price * 0.1).toString() // Default 10% deposit
+        }))
+        setShowBookingModal(true)
+    }
+
+    const processBooking = async () => {
+        if (!user || !bookingProperty) return
+
+        setProcessingBooking(true)
+        try {
+            // Step 1: Process deposit payment
+            if (bookingStep === 'payment') {
+                const amount = parseFloat(depositPayment.amount)
+                const platformFee = amount * 0.05 // 5% platform fee
+                const agentAmount = amount - platformFee // Agent gets 95% of deposit
+
+                // Process payment through platform
+                let paymentResult
+                if (depositPayment.paymentMethod === 'tinympesa') {
+                    paymentResult = await processTinyMpesaPayment(amount, depositPayment.mpesaPhone)
+                } else if (depositPayment.paymentMethod === 'stripe') {
+                    paymentResult = await processStripePayment(amount, depositPayment.cardDetails)
+                }
+
+                // Step 2: Create booking record with payment details
+                const bookingData = {
+                    property_id: bookingProperty.id,
+                    tenant_id: user.id,
+                    agent_id: bookingProperty.agent_id,
+                    booking_details: bookingDetails,
+                    deposit_amount: amount,
+                    platform_fee: platformFee,
+                    agent_amount: agentAmount,
+                    payment_method: depositPayment.paymentMethod,
+                    payment_reference: paymentResult?.reference || `BK-${Date.now()}`,
+                    status: 'pending_agent_approval',
+                    created_at: new Date().toISOString()
+                }
+
+                const bookingResponse = await fetch('/api/bookings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bookingData)
+                })
+
+                if (!bookingResponse.ok) throw new Error('Booking creation failed')
+                const { data: bookingRecord } = await bookingResponse.json()
+
+                // Step 3: Create payment record for tracking
+                const paymentData = {
+                    booking_id: bookingRecord.id,
+                    tenant_id: user.id,
+                    agent_id: bookingProperty.agent_id,
+                    property_id: bookingProperty.id,
+                    amount: amount,
+                    platform_fee: platformFee,
+                    agent_amount: agentAmount,
+                    payment_method: depositPayment.paymentMethod,
+                    payment_reference: paymentResult?.reference,
+                    status: 'completed',
+                    type: 'deposit',
+                    created_at: new Date().toISOString()
+                }
+
+                await fetch('/api/payments/record', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(paymentData)
+                })
+
+                // Step 4: Update property status to pending
+                await fetch(`/api/properties/${bookingProperty.id}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status: 'pending',
+                        pending_booking_id: bookingRecord.id
+                    })
+                })
+
+                // Step 5: Send comprehensive notification to agent
+                await fetch('/api/notifications', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipient_id: bookingProperty.agent_id,
+                        title: 'New Booking Request - Payment Received',
+                        message: `${user.email} has booked "${bookingProperty.title}" with deposit payment of KSh ${amount.toLocaleString()}. Your earnings: KSh ${agentAmount.toLocaleString()}. Please review and approve.`,
+                        type: 'booking_request',
+                        data: {
+                            booking_id: bookingRecord.id,
+                            property_id: bookingProperty.id,
+                            tenant_email: user.email,
+                            deposit_amount: amount,
+                            agent_earnings: agentAmount,
+                            move_in_date: bookingDetails.moveInDate,
+                            lease_period: bookingDetails.leasePeriod
+                        }
+                    })
+                })
+
+                // Step 6: Create agent earnings record (pending until approval)
+                await fetch('/api/agent/earnings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent_id: bookingProperty.agent_id,
+                        booking_id: bookingRecord.id,
+                        property_id: bookingProperty.id,
+                        amount: agentAmount,
+                        type: 'deposit_commission',
+                        status: 'pending_approval',
+                        description: `Deposit commission for ${bookingProperty.title}`,
+                        created_at: new Date().toISOString()
+                    })
+                })
+
+                setBookingStatus('pending')
+                setBookingStep('confirmation')
+                toast.success('Booking submitted successfully! Agent will receive payment upon approval.')
+            }
+        } catch (error) {
+            console.error('Booking error:', error)
+            toast.error('Booking failed. Please try again.')
+        } finally {
+            setProcessingBooking(false)
+        }
+    }
+
+    // Load saved properties and payment reminders
+    const loadSavedProperties = async () => {
+        if (!user) return
+
+        try {
+            const response = await fetch(`/api/users/${user.id}/saved-properties`)
+            if (response.ok) {
+                const { data } = await response.json()
+                setSavedProperties(data || [])
+                setFavoriteProperties(data?.map((p: any) => p.id) || [])
+            }
+        } catch (error) {
+            console.error('Error loading saved properties:', error)
+        }
+    }
+
+    const loadPaymentReminders = async () => {
+        if (!user) return
+
+        try {
+            const response = await fetch(`/api/users/${user.id}/payment-reminders`)
+            if (response.ok) {
+                const { data } = await response.json()
+                setPaymentReminders(data?.reminders || [])
+                setUpcomingPayments(data?.upcoming || [])
+                setOverduePayments(data?.overdue || [])
+            }
+        } catch (error) {
+            console.error('Error loading payment reminders:', error)
+        }
+    }
+
+    // Save property to favorites
+    const savePropertyToFavorites = async (propertyId: string) => {
+        if (!user) return
+
+        try {
+            const response = await fetch('/api/users/saved-properties', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: user.id,
+                    property_id: propertyId
+                })
+            })
+
+            if (!response.ok) throw new Error('Failed to save property')
+
+            loadSavedProperties()
+        } catch (error) {
+            console.error('Error saving property:', error)
+        }
+    }
+
+    const handlePropertyView = (property: any) => {
+        setSelectedProperty(property)
+        setShowPropertyModal(true)
+    }
+
+    const handleToggleFavorite = (propertyId: string) => {
+        setFavoriteProperties(prev =>
+            prev.includes(propertyId)
+                ? prev.filter(id => id !== propertyId)
+                : [...prev, propertyId]
+        )
+        toast.success(
+            favoriteProperties.includes(propertyId)
+                ? 'Removed from favorites'
+                : 'Added to favorites'
+        )
+    }
+
+    const handleExpressInterest = (property: any) => {
+        setInterestProperty(property)
+        setShowInterestModal(true)
+    }
+
+    const submitInterest = async () => {
+        if (!user || !interestProperty) return
+
+        try {
+            const response = await fetch('/api/properties/interest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    property_id: interestProperty.id,
+                    tenant_id: user.id,
+                    message: `Interest expressed in ${interestProperty.title}`
+                })
+            })
+
+            if (!response.ok) throw new Error('Failed to express interest')
+
+            toast.success('Interest submitted successfully! The agent will contact you soon.')
+            setShowInterestModal(false)
+            setInterestProperty(null)
+        } catch (error) {
+            console.error('Interest submission error:', error)
+            toast.error('Failed to submit interest')
+        }
+    }
+
+    const filteredSearchProperties = searchProperties.filter(property => {
+        const matchesQuery = !searchQuery ||
+            property.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            property.location?.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            property.description?.toLowerCase().includes(searchQuery.toLowerCase())
+
+        const matchesPrice = (!searchFilters.priceRange.min || property.price >= parseInt(searchFilters.priceRange.min)) &&
+            (!searchFilters.priceRange.max || property.price <= parseInt(searchFilters.priceRange.max))
+
+        const matchesType = searchFilters.propertyType === 'all' || property.type === searchFilters.propertyType
+
+        const matchesBedrooms = searchFilters.bedrooms === 'any' ||
+            (searchFilters.bedrooms === '4+' ? property.specifications?.bedrooms >= 4 :
+                property.specifications?.bedrooms === parseInt(searchFilters.bedrooms))
+
+        const matchesBathrooms = searchFilters.bathrooms === 'any' ||
+            (searchFilters.bathrooms === '4+' ? property.specifications?.bathrooms >= 4 :
+                property.specifications?.bathrooms === parseInt(searchFilters.bathrooms))
+
+        const matchesLocation = !searchFilters.location ||
+            property.location?.address.toLowerCase().includes(searchFilters.location.toLowerCase()) ||
+            property.location?.city.toLowerCase().includes(searchFilters.location.toLowerCase())
+
+        const matchesAmenities = Object.entries(searchFilters.amenities).every(([key, required]) =>
+            !required || property.amenities?.[key] || property.specifications?.[key]
+        )
+
+        return matchesQuery && matchesPrice && matchesType && matchesBedrooms && matchesBathrooms && matchesLocation && matchesAmenities
+    })
+
+    // Load properties when search tab is activated and load saved properties
+    useEffect(() => {
+        if (activeTab === 'search') {
+            loadAgentProperties() // Load actual agent listings first
+            loadSavedProperties()
+        }
+    }, [activeTab])
+
+    // Load initial data when component mounts
+    useEffect(() => {
+        if (user) {
+            loadSavedProperties()
+            loadPaymentReminders()
+            loadUserBookings()
+        }
+    }, [user])
+
+    // Enhanced property search that connects to agent listings
+    const loadAgentProperties = async () => {
+        setSearchLoading(true)
+        try {
+            const response = await fetch('/api/properties/agent-listings', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            })
+
+            if (!response.ok) throw new Error('Failed to load properties')
+
+            const { data } = await response.json()
+            // Only show available properties created by verified agents
+            const availableProperties = data?.filter((property: any) =>
+                property.agent_id &&
+                property.status === 'available' &&
+                property.created_by_agent === true &&
+                property.agent?.verified === true
+            ) || []
+
+            setSearchProperties(availableProperties)
+        } catch (error) {
+            console.error('Error loading agent properties:', error)
+            toast.error('Failed to load properties')
+            setSearchProperties([])
+        } finally {
+            setSearchLoading(false)
+        }
+    }
+
+    // Load user's bookings to show booking status
+    const loadUserBookings = async () => {
+        if (!user) return
+
+        try {
+            const response = await fetch(`/api/bookings?tenant_id=${user.id}`)
+            if (response.ok) {
+                const { data } = await response.json()
+                // Update booking status for properties
+                data?.forEach((booking: any) => {
+                    if (booking.status === 'pending_agent_approval') {
+                        toast(`Your booking for "${booking.property?.title}" is awaiting agent approval.`, {
+                            icon: '⏳',
+                            duration: 4000
+                        })
+                    } else if (booking.status === 'approved') {
+                        toast.success(`Your booking for "${booking.property?.title}" has been approved!`)
+                    } else if (booking.status === 'rejected') {
+                        toast.error(`Your booking for "${booking.property?.title}" was rejected.`)
+                    }
+                })
+            }
+        } catch (error) {
+            console.error('Error loading user bookings:', error)
+        }
+    }
+
     if (!user || loading) {
         return (
             <div className="min-h-screen bg-nestie-grey-50 flex items-center justify-center">
@@ -361,6 +839,7 @@ export default function TenantPortal() {
                             <ul className="space-y-2">
                                 {[
                                     { id: 'overview', label: 'Overview', icon: Home },
+                                    { id: 'search', label: 'Search Properties', icon: Search },
                                     { id: 'payments', label: 'Payments', icon: CreditCard },
                                     { id: 'transactions', label: 'Transactions', icon: FileText },
                                     { id: 'notifications', label: 'Notifications', icon: Bell, badge: unreadNotifications },
@@ -527,6 +1006,382 @@ export default function TenantPortal() {
                                         )}
                                     </div>
                                 </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'search' && (
+                            <div className="space-y-6">
+                                <div>
+                                    <h1 className="text-2xl font-bold text-nestie-black mb-2">Search Properties</h1>
+                                    <p className="text-nestie-grey-600">Find your perfect home from available properties.</p>
+                                </div>
+
+                                {/* Search Bar and Filters */}
+                                <div className="bg-nestie-white rounded-xl border border-nestie-grey-200 p-6">
+                                    <div className="space-y-4">
+                                        {/* Smart Natural Language Search */}
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                                                    Describe what you're looking for
+                                                </label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="e.g., spacious apartment with balcony near CBD, furnished house with garden..."
+                                                        value={keywordDescription}
+                                                        onChange={(e) => {
+                                                            setKeywordDescription(e.target.value)
+                                                            parseKeywordDescription(e.target.value)
+                                                        }}
+                                                        className="flex-1 px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                                    />
+                                                    <button
+                                                        onClick={searchForProperties}
+                                                        disabled={searchLoading}
+                                                        className="bg-nestie-black text-white px-6 py-2 rounded-lg hover:bg-nestie-grey-800 disabled:opacity-50 flex items-center"
+                                                    >
+                                                        {searchLoading ? (
+                                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                                        ) : (
+                                                            <Search className="h-4 w-4 mr-2" />
+                                                        )}
+                                                        Search
+                                                    </button>
+                                                </div>
+                                                <p className="text-xs text-nestie-grey-500 mt-1">
+                                                    Use natural language to describe your ideal property
+                                                </p>
+                                            </div>
+
+                                            {/* Traditional Search */}
+                                            <div className="flex gap-4">
+                                                <div className="flex-1 relative">
+                                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-nestie-grey-400" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search by title, location, or description..."
+                                                        value={searchQuery}
+                                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                                        className="w-full pl-10 pr-4 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Enhanced Filters */}
+                                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-nestie-grey-700 mb-1">Property Type</label>
+                                                <select
+                                                    value={searchFilters.propertyType}
+                                                    onChange={(e) => setSearchFilters({ ...searchFilters, propertyType: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                                >
+                                                    <option value="all">All Types</option>
+                                                    <option value="apartment">Apartment</option>
+                                                    <option value="house">House</option>
+                                                    <option value="commercial">Commercial</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-nestie-grey-700 mb-1">Bedrooms</label>
+                                                <select
+                                                    value={searchFilters.bedrooms}
+                                                    onChange={(e) => setSearchFilters({ ...searchFilters, bedrooms: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                                >
+                                                    <option value="any">Any</option>
+                                                    <option value="1">1 Bedroom</option>
+                                                    <option value="2">2 Bedrooms</option>
+                                                    <option value="3">3 Bedrooms</option>
+                                                    <option value="4+">4+ Bedrooms</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-nestie-grey-700 mb-1">Price Range (KSh)</label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="number"
+                                                        placeholder="Min"
+                                                        value={searchFilters.priceRange.min}
+                                                        onChange={(e) => setSearchFilters({
+                                                            ...searchFilters,
+                                                            priceRange: { ...searchFilters.priceRange, min: e.target.value }
+                                                        })}
+                                                        className="w-full px-2 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        placeholder="Max"
+                                                        value={searchFilters.priceRange.max}
+                                                        onChange={(e) => setSearchFilters({
+                                                            ...searchFilters,
+                                                            priceRange: { ...searchFilters.priceRange, max: e.target.value }
+                                                        })}
+                                                        className="w-full px-2 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-nestie-grey-700 mb-1">City</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g., Nairobi, Mombasa..."
+                                                    value={searchFilters.location}
+                                                    onChange={(e) => setSearchFilters({ ...searchFilters, location: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Additional Location Filters */}
+                                        <div className="grid md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-nestie-grey-700 mb-1">Region/Area</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g., Westlands, Karen, Kilimani..."
+                                                    value={searchFilters.region}
+                                                    onChange={(e) => setSearchFilters({ ...searchFilters, region: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-nestie-grey-700 mb-1">Estate/Development</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g., Spring Valley, Runda..."
+                                                    value={searchFilters.estate}
+                                                    onChange={(e) => setSearchFilters({ ...searchFilters, estate: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Enhanced Amenities Filter */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-nestie-grey-700 mb-2">Amenities & Features</label>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                                                {[
+                                                    { key: 'wifi', label: 'WiFi/Internet', icon: Wifi },
+                                                    { key: 'pool', label: 'Swimming Pool', icon: Waves },
+                                                    { key: 'gym', label: 'Gym/Fitness', icon: Building },
+                                                    { key: 'security', label: '24/7 Security', icon: Shield },
+                                                    { key: 'parking', label: 'Parking/Garage', icon: Car },
+                                                    { key: 'furnished', label: 'Furnished', icon: Home },
+                                                    { key: 'balcony', label: 'Balcony/Terrace', icon: Building },
+                                                    { key: 'garden', label: 'Garden/Yard', icon: Building },
+                                                    { key: 'nearCBD', label: 'Near CBD', icon: MapPin },
+                                                    { key: 'spacious', label: 'Spacious/Large', icon: Building }
+                                                ].map(({ key, label, icon: Icon }) => (
+                                                    <label key={key} className="flex items-center space-x-2 p-2 border border-nestie-grey-200 rounded-lg hover:bg-nestie-grey-50 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={searchFilters.amenities[key as keyof typeof searchFilters.amenities]}
+                                                            onChange={(e) => setSearchFilters({
+                                                                ...searchFilters,
+                                                                amenities: { ...searchFilters.amenities, [key]: e.target.checked }
+                                                            })}
+                                                            className="rounded border-nestie-grey-300 text-nestie-black focus:ring-nestie-black"
+                                                        />
+                                                        <Icon className="h-4 w-4 text-nestie-grey-600" />
+                                                        <span className="text-sm text-nestie-grey-700">{label}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* View Mode Toggle */}
+                                        <div className="flex items-center justify-between pt-4 border-t border-nestie-grey-200">
+                                            <p className="text-sm text-nestie-grey-600">
+                                                {filteredSearchProperties.length} properties found
+                                            </p>
+                                            <div className="flex border border-nestie-grey-300 rounded-lg">
+                                                <button
+                                                    onClick={() => setSearchViewMode('grid')}
+                                                    className={`p-2 ${searchViewMode === 'grid' ? 'bg-nestie-black text-white' : 'text-nestie-grey-600'}`}
+                                                >
+                                                    <Grid className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => setSearchViewMode('list')}
+                                                    className={`p-2 ${searchViewMode === 'list' ? 'bg-nestie-black text-white' : 'text-nestie-grey-600'}`}
+                                                >
+                                                    <List className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Search Results */}
+                                {searchLoading ? (
+                                    <div className="bg-nestie-white rounded-xl border border-nestie-grey-200 p-12 text-center">
+                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-nestie-black mx-auto mb-4"></div>
+                                        <p className="text-nestie-grey-600">Searching properties...</p>
+                                    </div>
+                                ) : (
+                                    <div className={searchViewMode === 'grid' ? 'grid md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
+                                        {filteredSearchProperties.map((property) => (
+                                            <div key={property.id} className="bg-nestie-white rounded-xl border border-nestie-grey-200 overflow-hidden hover:shadow-lg transition-shadow">
+                                                {/* Property Image */}
+                                                <div className="relative h-48 bg-nestie-grey-200">
+                                                    {property.images && property.images.length > 0 ? (
+                                                        <img
+                                                            src={property.images[0]}
+                                                            alt={property.title}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <Building className="h-12 w-12 text-nestie-grey-400" />
+                                                        </div>
+                                                    )}
+                                                    <div className="absolute top-2 right-2 flex space-x-2">
+                                                        <button
+                                                            onClick={() => handleToggleFavorite(property.id)}
+                                                            className={`p-2 rounded-full ${favoriteProperties.includes(property.id)
+                                                                ? 'bg-red-500 text-white'
+                                                                : 'bg-white text-nestie-grey-600 hover:text-red-500'
+                                                                }`}
+                                                        >
+                                                            <Heart className="h-4 w-4" />
+                                                        </button>
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${property.status === 'available' ? 'bg-green-100 text-green-800' :
+                                                            'bg-orange-100 text-orange-800'
+                                                            }`}>
+                                                            {property.status}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Property Details */}
+                                                <div className="p-4">
+                                                    <div className="flex items-start justify-between mb-2">
+                                                        <h3 className="font-semibold text-nestie-black text-lg">{property.title}</h3>
+                                                        <button
+                                                            onClick={() => handlePropertyView(property)}
+                                                            className="p-1 text-nestie-grey-600 hover:text-nestie-black"
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="flex items-center text-nestie-grey-600 mb-2">
+                                                        <MapPin className="h-4 w-4 mr-1" />
+                                                        <span className="text-sm">{property.location?.address}</span>
+                                                    </div>
+
+                                                    <div className="flex items-center space-x-4 text-sm text-nestie-grey-600 mb-3">
+                                                        <div className="flex items-center">
+                                                            <Bed className="h-4 w-4 mr-1" />
+                                                            <span>{property.specifications?.bedrooms} bed</span>
+                                                        </div>
+                                                        <div className="flex items-center">
+                                                            <Bath className="h-4 w-4 mr-1" />
+                                                            <span>{property.specifications?.bathrooms} bath</span>
+                                                        </div>
+                                                        {property.specifications?.area && (
+                                                            <span>{property.specifications.area} sqft</span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div>
+                                                            <span className="text-2xl font-bold text-nestie-black">
+                                                                KSh {parseInt(property.price).toLocaleString()}
+                                                            </span>
+                                                            <span className="text-nestie-grey-500 text-sm">
+                                                                /{property.listingType === 'rent' ? 'month' : property.listingType}
+                                                            </span>
+                                                        </div>
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${property.listingType === 'rent' ? 'bg-blue-100 text-blue-800' :
+                                                            property.listingType === 'sale' ? 'bg-green-100 text-green-800' :
+                                                                'bg-purple-100 text-purple-800'
+                                                            }`}>
+                                                            For {property.listingType}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Amenities Icons */}
+                                                    <div className="flex items-center space-x-2 mb-4 pt-3 border-t border-nestie-grey-200">
+                                                        {property.amenities?.wifi && <Wifi className="h-4 w-4 text-nestie-grey-600" />}
+                                                        {property.amenities?.pool && <Waves className="h-4 w-4 text-blue-500" />}
+                                                        {property.specifications?.parking && <Car className="h-4 w-4 text-nestie-grey-600" />}
+                                                        {property.amenities?.security && <Shield className="h-4 w-4 text-green-500" />}
+                                                    </div>
+
+                                                    {/* Action Buttons */}
+                                                    <div className="flex space-x-2">
+                                                        <button
+                                                            onClick={() => handlePropertyView(property)}
+                                                            className="flex-1 bg-nestie-grey-100 text-nestie-black px-4 py-2 rounded-lg hover:bg-nestie-grey-200 transition-colors text-sm"
+                                                        >
+                                                            View Details
+                                                        </button>
+                                                        {property.status === 'available' ? (
+                                                            <button
+                                                                onClick={() => handleBookNow(property)}
+                                                                className="flex-1 bg-nestie-black text-white px-4 py-2 rounded-lg hover:bg-nestie-grey-800 transition-colors text-sm font-medium"
+                                                            >
+                                                                Book Now
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleExpressInterest(property)}
+                                                                className="flex-1 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors text-sm"
+                                                            >
+                                                                Express Interest
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {!searchLoading && filteredSearchProperties.length === 0 && (
+                                    <div className="bg-nestie-white rounded-xl border border-nestie-grey-200 p-12 text-center">
+                                        <Search className="h-12 w-12 text-nestie-grey-400 mx-auto mb-4" />
+                                        <h3 className="text-lg font-medium text-nestie-black mb-2">No properties found</h3>
+                                        <p className="text-nestie-grey-600 mb-4">Try adjusting your search criteria or filters.</p>
+                                        <button
+                                            onClick={() => {
+                                                setSearchQuery('')
+                                                setSearchFilters({
+                                                    priceRange: { min: '', max: '' },
+                                                    propertyType: 'all',
+                                                    bedrooms: 'any',
+                                                    bathrooms: 'any',
+                                                    location: '',
+                                                    region: '',
+                                                    estate: '',
+                                                    amenities: {
+                                                        wifi: false,
+                                                        pool: false,
+                                                        gym: false,
+                                                        security: false,
+                                                        parking: false,
+                                                        furnished: false,
+                                                        balcony: false,
+                                                        garden: false,
+                                                        nearCBD: false,
+                                                        spacious: false
+                                                    }
+                                                })
+                                                searchForProperties()
+                                            }}
+                                            className="bg-nestie-black text-white px-4 py-2 rounded-lg hover:bg-nestie-grey-800"
+                                        >
+                                            Clear Filters
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -1083,6 +1938,614 @@ export default function TenantPortal() {
                                     Submit Request
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Property Details Modal */}
+            {showPropertyModal && selectedProperty && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white border-b border-nestie-grey-200 p-6">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-2xl font-bold text-nestie-black">{selectedProperty.title}</h2>
+                                <button onClick={() => setShowPropertyModal(false)}>
+                                    <X className="h-6 w-6 text-nestie-grey-500" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-6">
+                            {/* Property Images */}
+                            {selectedProperty.images && selectedProperty.images.length > 0 && (
+                                <div className="mb-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {selectedProperty.images.map((image: string, index: number) => (
+                                            <img
+                                                key={index}
+                                                src={image}
+                                                alt={`${selectedProperty.title} ${index + 1}`}
+                                                className="w-full h-48 object-cover rounded-lg"
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Property Details */}
+                            <div className="grid md:grid-cols-2 gap-8">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-nestie-black mb-4">Property Details</h3>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between">
+                                            <span className="text-nestie-grey-600">Type:</span>
+                                            <span className="font-medium">{selectedProperty.type}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-nestie-grey-600">Listing Type:</span>
+                                            <span className="font-medium">For {selectedProperty.listingType}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-nestie-grey-600">Price:</span>
+                                            <span className="font-medium text-green-600">KSh {parseInt(selectedProperty.price).toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-nestie-grey-600">Status:</span>
+                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${selectedProperty.status === 'available' ? 'bg-green-100 text-green-800' :
+                                                'bg-orange-100 text-orange-800'
+                                                }`}>
+                                                {selectedProperty.status}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <h4 className="text-md font-semibold text-nestie-black mt-6 mb-3">Specifications</h4>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                            <span className="text-nestie-grey-600">Bedrooms:</span>
+                                            <span>{selectedProperty.specifications?.bedrooms}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-nestie-grey-600">Bathrooms:</span>
+                                            <span>{selectedProperty.specifications?.bathrooms}</span>
+                                        </div>
+                                        {selectedProperty.specifications?.area && (
+                                            <div className="flex justify-between">
+                                                <span className="text-nestie-grey-600">Area:</span>
+                                                <span>{selectedProperty.specifications.area} sqft</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between">
+                                            <span className="text-nestie-grey-600">Parking:</span>
+                                            <span>{selectedProperty.specifications?.parking ? 'Available' : 'Not Available'}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-nestie-grey-600">Furnished:</span>
+                                            <span>{selectedProperty.specifications?.furnished ? 'Yes' : 'No'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 className="text-lg font-semibold text-nestie-black mb-4">Location & Contact</h3>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <span className="text-nestie-grey-600">Address:</span>
+                                            <p className="font-medium">{selectedProperty.location?.address}</p>
+                                        </div>
+                                        {selectedProperty.location?.city && (
+                                            <div>
+                                                <span className="text-nestie-grey-600">City:</span>
+                                                <p className="font-medium">{selectedProperty.location.city}</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <h4 className="text-md font-semibold text-nestie-black mt-6 mb-3">Contact Information</h4>
+                                    <div className="space-y-2">
+                                        {selectedProperty.contactInfo?.phone && (
+                                            <div className="flex items-center">
+                                                <Phone className="h-4 w-4 text-nestie-grey-600 mr-2" />
+                                                <span>{selectedProperty.contactInfo.phone}</span>
+                                            </div>
+                                        )}
+                                        {selectedProperty.contactInfo?.email && (
+                                            <div className="flex items-center">
+                                                <Mail className="h-4 w-4 text-nestie-grey-600 mr-2" />
+                                                <span>{selectedProperty.contactInfo.email}</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Amenities */}
+                                    {selectedProperty.amenities && (
+                                        <>
+                                            <h4 className="text-md font-semibold text-nestie-black mt-6 mb-3">Amenities</h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {Object.entries(selectedProperty.amenities)
+                                                    .filter(([key, value]) => value === true)
+                                                    .map(([key]) => (
+                                                        <span key={key} className="px-2 py-1 bg-nestie-grey-100 text-nestie-grey-700 rounded-full text-xs">
+                                                            {key.charAt(0).toUpperCase() + key.slice(1)}
+                                                        </span>
+                                                    ))}
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {/* Terms */}
+                                    {selectedProperty.terms && (
+                                        <>
+                                            <h4 className="text-md font-semibold text-nestie-black mt-6 mb-3">Terms</h4>
+                                            <div className="space-y-2">
+                                                {selectedProperty.terms.deposit && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-nestie-grey-600">Security Deposit:</span>
+                                                        <span>KSh {parseInt(selectedProperty.terms.deposit).toLocaleString()}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between">
+                                                    <span className="text-nestie-grey-600">Lease Period:</span>
+                                                    <span>{selectedProperty.terms.leasePeriod} months</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-nestie-grey-600">Payment Method:</span>
+                                                    <span className="capitalize">{selectedProperty.terms.paymentMethod}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-nestie-grey-600">Utilities:</span>
+                                                    <span className="capitalize">{selectedProperty.terms.utilities}</span>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Description */}
+                            {selectedProperty.description && (
+                                <div className="mt-6">
+                                    <h3 className="text-lg font-semibold text-nestie-black mb-3">Description</h3>
+                                    <p className="text-nestie-grey-600">{selectedProperty.description}</p>
+                                </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="flex space-x-4 mt-8 pt-6 border-t border-nestie-grey-200">
+                                <button
+                                    onClick={() => handleToggleFavorite(selectedProperty.id)}
+                                    className={`flex items-center px-4 py-2 rounded-lg border transition-colors ${favoriteProperties.includes(selectedProperty.id)
+                                        ? 'bg-red-50 border-red-200 text-red-700'
+                                        : 'bg-white border-nestie-grey-300 text-nestie-grey-700 hover:bg-nestie-grey-50'
+                                        }`}
+                                >
+                                    <Heart className="h-4 w-4 mr-2" />
+                                    {favoriteProperties.includes(selectedProperty.id) ? 'Remove from Favorites' : 'Add to Favorites'}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowPropertyModal(false)
+                                        handleExpressInterest(selectedProperty)
+                                    }}
+                                    className="flex-1 bg-nestie-black text-white px-4 py-2 rounded-lg hover:bg-nestie-grey-800 transition-colors"
+                                >
+                                    Express Interest
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Express Interest Modal */}
+            {showInterestModal && interestProperty && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl w-full max-w-md mx-4">
+                        <div className="p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-xl font-bold text-nestie-black">Express Interest</h2>
+                                <button onClick={() => setShowInterestModal(false)}>
+                                    <X className="h-5 w-5 text-nestie-grey-500" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <h3 className="font-semibold text-blue-900 mb-2">{interestProperty.title}</h3>
+                                    <p className="text-blue-700 text-sm">{interestProperty.location?.address}</p>
+                                    <p className="text-blue-800 font-medium mt-2">
+                                        KSh {parseInt(interestProperty.price).toLocaleString()}/{interestProperty.listingType === 'rent' ? 'month' : interestProperty.listingType}
+                                    </p>
+                                </div>
+
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <h4 className="font-medium text-green-800 mb-2">What happens next?</h4>
+                                    <ul className="text-green-700 text-sm space-y-1">
+                                        <li>• Your interest will be sent to the property agent</li>
+                                        <li>• The agent will contact you within 24 hours</li>
+                                        <li>• You can arrange a viewing or ask questions</li>
+                                        <li>• If interested, you can proceed with the application</li>
+                                    </ul>
+                                </div>
+
+                                <div className="flex space-x-3 pt-4">
+                                    <button
+                                        onClick={() => setShowInterestModal(false)}
+                                        className="flex-1 px-4 py-2 border border-nestie-grey-300 text-nestie-grey-700 rounded-lg hover:bg-nestie-grey-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={submitInterest}
+                                        className="flex-1 px-4 py-2 bg-nestie-black text-white rounded-lg hover:bg-nestie-grey-800"
+                                    >
+                                        Submit Interest
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Booking Modal */}
+            {showBookingModal && bookingProperty && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white border-b border-nestie-grey-200 p-6">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-2xl font-bold text-nestie-black">Book Property</h2>
+                                <button onClick={() => setShowBookingModal(false)}>
+                                    <X className="h-6 w-6 text-nestie-grey-500" />
+                                </button>
+                            </div>
+
+                            {/* Progress Steps */}
+                            <div className="flex items-center mt-4">
+                                <div className={`flex items-center ${bookingStep === 'details' ? 'text-nestie-black' : 'text-green-600'}`}>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bookingStep === 'details' ? 'bg-nestie-black text-white' : 'bg-green-500 text-white'}`}>
+                                        {bookingStep === 'details' ? '1' : <CheckCircle className="h-5 w-5" />}
+                                    </div>
+                                    <span className="ml-2 text-sm font-medium">Details</span>
+                                </div>
+                                <div className="flex-1 h-px bg-nestie-grey-300 mx-4"></div>
+                                <div className={`flex items-center ${bookingStep === 'payment' ? 'text-nestie-black' : bookingStep === 'confirmation' ? 'text-green-600' : 'text-nestie-grey-400'}`}>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bookingStep === 'payment' ? 'bg-nestie-black text-white' :
+                                        bookingStep === 'confirmation' ? 'bg-green-500 text-white' :
+                                            'bg-nestie-grey-300 text-nestie-grey-600'
+                                        }`}>
+                                        {bookingStep === 'confirmation' ? <CheckCircle className="h-5 w-5" /> : '2'}
+                                    </div>
+                                    <span className="ml-2 text-sm font-medium">Payment</span>
+                                </div>
+                                <div className="flex-1 h-px bg-nestie-grey-300 mx-4"></div>
+                                <div className={`flex items-center ${bookingStep === 'confirmation' ? 'text-nestie-black' : 'text-nestie-grey-400'}`}>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bookingStep === 'confirmation' ? 'bg-nestie-black text-white' : 'bg-nestie-grey-300 text-nestie-grey-600'}`}>
+                                        3
+                                    </div>
+                                    <span className="ml-2 text-sm font-medium">Confirmation</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6">
+                            {/* Property Summary */}
+                            <div className="bg-nestie-grey-50 rounded-lg p-4 mb-6">
+                                <div className="flex items-start space-x-4">
+                                    <div className="w-20 h-16 bg-nestie-grey-200 rounded-lg flex items-center justify-center">
+                                        {bookingProperty.images && bookingProperty.images.length > 0 ? (
+                                            <img src={bookingProperty.images[0]} alt={bookingProperty.title} className="w-full h-full object-cover rounded-lg" />
+                                        ) : (
+                                            <Building className="h-8 w-8 text-nestie-grey-400" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="font-semibold text-nestie-black">{bookingProperty.title}</h3>
+                                        <p className="text-sm text-nestie-grey-600">{bookingProperty.location?.address}</p>
+                                        <p className="text-lg font-bold text-nestie-black mt-1">
+                                            KSh {parseInt(bookingProperty.price).toLocaleString()}/month
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Step 1: Booking Details */}
+                            {bookingStep === 'details' && (
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-semibold text-nestie-black">Booking Details</h3>
+
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                                                Preferred Move-in Date
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={bookingDetails.moveInDate}
+                                                onChange={(e) => setBookingDetails({ ...bookingDetails, moveInDate: e.target.value })}
+                                                min={new Date().toISOString().split('T')[0]}
+                                                className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                                                Lease Period
+                                            </label>
+                                            <select
+                                                value={bookingDetails.leasePeriod}
+                                                onChange={(e) => setBookingDetails({ ...bookingDetails, leasePeriod: e.target.value })}
+                                                className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                            >
+                                                <option value="6">6 months</option>
+                                                <option value="12">12 months</option>
+                                                <option value="24">24 months</option>
+                                                <option value="36">36 months</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                                            Special Requests (Optional)
+                                        </label>
+                                        <textarea
+                                            value={bookingDetails.specialRequests}
+                                            onChange={(e) => setBookingDetails({ ...bookingDetails, specialRequests: e.target.value })}
+                                            placeholder="Any special requests or requirements..."
+                                            rows={3}
+                                            className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                        />
+                                    </div>
+
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                        <h4 className="font-medium text-blue-800 mb-2">Deposit Information</h4>
+                                        <p className="text-blue-700 text-sm mb-2">
+                                            Security Deposit: KSh {parseInt(depositPayment.amount).toLocaleString()}
+                                        </p>
+                                        <p className="text-blue-600 text-xs">
+                                            This deposit will be processed in the next step and is required to secure your booking.
+                                        </p>
+                                    </div>
+
+                                    <div className="flex space-x-3 pt-4">
+                                        <button
+                                            onClick={() => setShowBookingModal(false)}
+                                            className="flex-1 px-4 py-2 border border-nestie-grey-300 text-nestie-grey-700 rounded-lg hover:bg-nestie-grey-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => setBookingStep('payment')}
+                                            disabled={!bookingDetails.moveInDate}
+                                            className="flex-1 px-4 py-2 bg-nestie-black text-white rounded-lg hover:bg-nestie-grey-800 disabled:opacity-50"
+                                        >
+                                            Continue to Payment
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Step 2: Payment */}
+                            {bookingStep === 'payment' && (
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-semibold text-nestie-black">Deposit Payment</h3>
+
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <h4 className="font-medium text-green-800 mb-2">Payment Amount</h4>
+                                        <p className="text-2xl font-bold text-green-900">
+                                            KSh {parseInt(depositPayment.amount).toLocaleString()}
+                                        </p>
+                                        <p className="text-green-700 text-sm">Security deposit for {bookingProperty.title}</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                                            Payment Method
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                onClick={() => setDepositPayment({ ...depositPayment, paymentMethod: 'tinympesa' })}
+                                                className={`flex items-center justify-center p-3 border-2 rounded-lg transition-colors ${depositPayment.paymentMethod === 'tinympesa'
+                                                    ? 'border-green-500 bg-green-50 text-green-700'
+                                                    : 'border-nestie-grey-300 hover:border-nestie-grey-400'
+                                                    }`}
+                                            >
+                                                <Smartphone className="h-5 w-5 mr-2" />
+                                                <span className="font-medium">M-Pesa</span>
+                                            </button>
+                                            <button
+                                                onClick={() => setDepositPayment({ ...depositPayment, paymentMethod: 'stripe' })}
+                                                className={`flex items-center justify-center p-3 border-2 rounded-lg transition-colors ${depositPayment.paymentMethod === 'stripe'
+                                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                    : 'border-nestie-grey-300 hover:border-nestie-grey-400'
+                                                    }`}
+                                            >
+                                                <CreditCard className="h-5 w-5 mr-2" />
+                                                <span className="font-medium">Card</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* M-Pesa Payment Form */}
+                                    {depositPayment.paymentMethod === 'tinympesa' && (
+                                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                            <div className="flex items-center mb-3">
+                                                <Smartphone className="h-5 w-5 text-green-600 mr-2" />
+                                                <h4 className="font-medium text-green-800">M-Pesa Payment</h4>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-green-700 mb-2">
+                                                    M-Pesa Phone Number
+                                                </label>
+                                                <input
+                                                    type="tel"
+                                                    value={depositPayment.mpesaPhone}
+                                                    onChange={(e) => setDepositPayment({ ...depositPayment, mpesaPhone: e.target.value })}
+                                                    placeholder="254712345678"
+                                                    className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                                />
+                                                <p className="text-xs text-green-600 mt-1">
+                                                    You will receive an M-Pesa prompt on this number
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Stripe Payment Form */}
+                                    {depositPayment.paymentMethod === 'stripe' && (
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                            <div className="flex items-center mb-3">
+                                                <CreditCard className="h-5 w-5 text-blue-600 mr-2" />
+                                                <h4 className="font-medium text-blue-800">Credit/Debit Card</h4>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-blue-700 mb-1">
+                                                        Cardholder Name
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={depositPayment.cardDetails.name}
+                                                        onChange={(e) => setDepositPayment({
+                                                            ...depositPayment,
+                                                            cardDetails: { ...depositPayment.cardDetails, name: e.target.value }
+                                                        })}
+                                                        placeholder="John Doe"
+                                                        className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-blue-700 mb-1">
+                                                        Card Number
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={depositPayment.cardDetails.number}
+                                                        onChange={(e) => setDepositPayment({
+                                                            ...depositPayment,
+                                                            cardDetails: { ...depositPayment.cardDetails, number: e.target.value }
+                                                        })}
+                                                        placeholder="1234 5678 9012 3456"
+                                                        className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-blue-700 mb-1">
+                                                            Expiry Date
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={depositPayment.cardDetails.expiry}
+                                                            onChange={(e) => setDepositPayment({
+                                                                ...depositPayment,
+                                                                cardDetails: { ...depositPayment.cardDetails, expiry: e.target.value }
+                                                            })}
+                                                            placeholder="MM/YY"
+                                                            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-blue-700 mb-1">
+                                                            CVV
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={depositPayment.cardDetails.cvv}
+                                                            onChange={(e) => setDepositPayment({
+                                                                ...depositPayment,
+                                                                cardDetails: { ...depositPayment.cardDetails, cvv: e.target.value }
+                                                            })}
+                                                            placeholder="123"
+                                                            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex space-x-3 pt-4">
+                                        <button
+                                            onClick={() => setBookingStep('details')}
+                                            className="flex-1 px-4 py-2 border border-nestie-grey-300 text-nestie-grey-700 rounded-lg hover:bg-nestie-grey-50"
+                                        >
+                                            Back
+                                        </button>
+                                        <button
+                                            onClick={processBooking}
+                                            disabled={processingBooking ||
+                                                (depositPayment.paymentMethod === 'tinympesa' && !depositPayment.mpesaPhone) ||
+                                                (depositPayment.paymentMethod === 'stripe' && (!depositPayment.cardDetails.number || !depositPayment.cardDetails.name))
+                                            }
+                                            className="flex-1 px-4 py-2 bg-nestie-black text-white rounded-lg hover:bg-nestie-grey-800 disabled:opacity-50 flex items-center justify-center"
+                                        >
+                                            {processingBooking ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                                    Processing...
+                                                </>
+                                            ) : (
+                                                'Pay Deposit & Book'
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Step 3: Confirmation */}
+                            {bookingStep === 'confirmation' && (
+                                <div className="space-y-4 text-center">
+                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                                        <CheckCircle className="h-8 w-8 text-green-600" />
+                                    </div>
+
+                                    <h3 className="text-xl font-semibold text-nestie-black">Booking Submitted!</h3>
+
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <h4 className="font-medium text-green-800 mb-2">What happens next?</h4>
+                                        <ul className="text-green-700 text-sm space-y-1 text-left">
+                                            <li>• Your booking request has been sent to the property agent</li>
+                                            <li>• The agent will review your application within 24-48 hours</li>
+                                            <li>• You'll receive a notification once the agent responds</li>
+                                            <li>• If approved, you can proceed with the lease agreement</li>
+                                            <li>• Your deposit of KSh {parseInt(depositPayment.amount).toLocaleString()} has been processed</li>
+                                        </ul>
+                                    </div>
+
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                        <h4 className="font-medium text-blue-800 mb-2">Booking Reference</h4>
+                                        <p className="text-blue-700 font-mono text-lg">
+                                            BK-{bookingProperty.id.slice(0, 8).toUpperCase()}-{Date.now().toString().slice(-6)}
+                                        </p>
+                                        <p className="text-blue-600 text-xs mt-1">
+                                            Save this reference number for your records
+                                        </p>
+                                    </div>
+
+                                    <div className="flex space-x-3 pt-4">
+                                        <button
+                                            onClick={() => {
+                                                setShowBookingModal(false)
+                                                setActiveTab('overview')
+                                            }}
+                                            className="flex-1 px-4 py-2 bg-nestie-black text-white rounded-lg hover:bg-nestie-grey-800"
+                                        >
+                                            Go to Dashboard
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowBookingModal(false)
+                                                setActiveTab('search')
+                                            }}
+                                            className="flex-1 px-4 py-2 border border-nestie-grey-300 text-nestie-grey-700 rounded-lg hover:bg-nestie-grey-50"
+                                        >
+                                            Continue Searching
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

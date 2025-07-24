@@ -177,6 +177,90 @@ export default function AgentDashboard() {
     }
   }
 
+  // Handle booking approval/rejection
+  const handleBookingAction = async (bookingId: string, action: 'approved' | 'rejected') => {
+    if (!user) return
+
+    try {
+      // Update booking status
+      const response = await fetch(`/api/bookings/${bookingId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: action })
+      })
+
+      if (!response.ok) throw new Error('Failed to update booking')
+
+      const { data: booking } = await response.json()
+
+      if (action === 'approved') {
+        // Update property status to occupied
+        await fetch(`/api/properties/${booking.property_id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'occupied' })
+        })
+
+        // Update agent earnings to available
+        await fetch(`/api/agent/earnings?booking_id=${bookingId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'available' })
+        })
+
+        // Create tenancy record
+        await fetch('/api/tenancies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            property_id: booking.property_id,
+            tenant_id: booking.tenant_id,
+            agent_id: booking.agent_id,
+            monthly_rent: booking.property?.price || 0,
+            start_date: booking.booking_details?.moveInDate || new Date().toISOString(),
+            lease_period: booking.booking_details?.leasePeriod || 12,
+            status: 'active'
+          })
+        })
+
+        toast.success('Booking approved! Property is now occupied and earnings are available.')
+      } else {
+        // Update property status back to available
+        await fetch(`/api/properties/${booking.property_id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'available' })
+        })
+
+        // Update agent earnings to rejected (no payment)
+        await fetch(`/api/agent/earnings?booking_id=${bookingId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'rejected' })
+        })
+
+        toast.success('Booking rejected. Property is available again.')
+      }
+
+      // Send notification to tenant
+      await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient_id: booking.tenant_id,
+          title: `Booking ${action}`,
+          message: `Your booking for "${booking.property?.title}" has been ${action} by the agent.`,
+          type: 'booking_response'
+        })
+      })
+
+      loadAgentData()
+    } catch (error) {
+      console.error('Booking action error:', error)
+      toast.error(`Failed to ${action.slice(0, -1)} booking`)
+    }
+  }
+
   const handleSignOut = async () => {
     await signOut()
     router.push('/')

@@ -1,7 +1,10 @@
 {
-  "/auth/login/page": "app/auth/login/page.js",
-  "/auth/signup/page": "app/auth/signup/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/tenant/portal/page": "app/tenant/portal/page.js",
   "/agent/dashboard/page": "app/agent/dashboard/page.js",
-  "/role-selection/page": "app/role-selection/page.js",
-  "/page": "app/page.js"
+  "/page": "app/page.js",
+  "/auth/login/page": "app/auth/login/page.js",
+  "/api/bookings/route": "app/api/bookings/route.js",
+  "/property/[id]/page": "app/property/[id]/page.js"
 }
