@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { 
-  ArrowLeft, 
-  Calendar, 
-  Clock, 
-  User, 
-  Phone, 
-  Mail, 
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  User,
+  Phone,
+  Mail,
   MessageCircle,
   CheckCircle
 } from 'lucide-react'
@@ -56,11 +56,11 @@ export default function BookPropertyPage() {
   }
 
   const timeSlots = [
-    '09:00', '10:00', '11:00', '12:00', 
+    '09:00', '10:00', '11:00', '12:00',
     '14:00', '15:00', '16:00', '17:00'
   ]
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
@@ -81,7 +81,7 @@ export default function BookPropertyPage() {
 
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 2000))
-      
+
       setStep(2)
       toast.success('Booking request submitted successfully!')
     } catch (error) {
@@ -108,7 +108,7 @@ export default function BookPropertyPage() {
                 <ArrowLeft className="h-5 w-5 text-nestie-grey-600" />
                 <span className="text-nestie-grey-600">Back to Property</span>
               </Link>
-              
+
               <h1 className="text-xl font-bold text-nestie-black">Booking Confirmation</h1>
             </div>
           </div>
@@ -123,11 +123,11 @@ export default function BookPropertyPage() {
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle className="h-8 w-8 text-green-600" />
             </div>
-            
+
             <h2 className="text-2xl font-bold text-nestie-black mb-4">
               Booking Request Submitted!
             </h2>
-            
+
             <p className="text-nestie-grey-600 mb-8">
               Your visit request has been sent to the property agent. You'll receive a confirmation within 24 hours.
             </p>
@@ -141,7 +141,7 @@ export default function BookPropertyPage() {
                   <p className="text-sm text-nestie-grey-500">Property</p>
                   <p className="font-medium text-nestie-black">{property.title}</p>
                 </div>
-                
+
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-nestie-grey-500">Visit Date</p>
@@ -154,19 +154,19 @@ export default function BookPropertyPage() {
                       })}
                     </p>
                   </div>
-                  
+
                   <div>
                     <p className="text-sm text-nestie-grey-500">Visit Time</p>
                     <p className="font-medium text-nestie-black">{formData.visitTime}</p>
                   </div>
                 </div>
-                
+
                 <div>
                   <p className="text-sm text-nestie-grey-500">Contact Person</p>
                   <p className="font-medium text-nestie-black">{formData.fullName}</p>
                   <p className="text-sm text-nestie-grey-600">{formData.email}</p>
                 </div>
-                
+
                 {formData.message && (
                   <div>
                     <p className="text-sm text-nestie-grey-500">Message</p>
@@ -200,7 +200,7 @@ export default function BookPropertyPage() {
               <ArrowLeft className="h-5 w-5 text-nestie-grey-600" />
               <span className="text-nestie-grey-600">Back to Property</span>
             </Link>
-            
+
             <h1 className="text-xl font-bold text-nestie-black">Schedule Visit</h1>
           </div>
         </div>
@@ -254,7 +254,7 @@ export default function BookPropertyPage() {
                     min={getMinDate()}
                     required
                   />
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-nestie-grey-700 mb-1">
                       Preferred Time *
@@ -280,7 +280,7 @@ export default function BookPropertyPage() {
                     <User className="h-5 w-5 mr-2" />
                     Contact Information
                   </h3>
-                  
+
                   <Input
                     label="Full Name *"
                     name="fullName"
@@ -289,7 +289,7 @@ export default function BookPropertyPage() {
                     placeholder="Enter your full name"
                     required
                   />
-                  
+
                   <div className="grid md:grid-cols-2 gap-4">
                     <Input
                       label="Email Address *"
@@ -300,7 +300,7 @@ export default function BookPropertyPage() {
                       placeholder="your@email.com"
                       required
                     />
-                    
+
                     <Input
                       label="Phone Number"
                       type="tel"
@@ -348,9 +348,9 @@ export default function BookPropertyPage() {
 
                 {/* Submit Button */}
                 <div className="flex justify-end space-x-4">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={() => router.back()}
                   >
                     Cancel

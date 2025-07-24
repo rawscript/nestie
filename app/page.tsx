@@ -488,10 +488,10 @@ export default function LandingPage() {
           <div>
             <h3 className="font-bold text-nestie-black mb-4">Support</h3>
             <ul className="space-y-2 text-nestie-grey-600">
-              <li><a href="#" className="hover:text-nestie-black transition-colors">Help Center</a></li>
-              <li><a href="#" className="hover:text-nestie-black transition-colors">Contact Us</a></li>
-              <li><a href="#" className="hover:text-nestie-black transition-colors">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-nestie-black transition-colors">Terms of Service</a></li>
+              <li><Link href="/help" className="hover:text-nestie-black transition-colors">Help Center</Link></li>
+              <li><Link href="/contact" className="hover:text-nestie-black transition-colors">Contact Us</Link></li>
+              <li><Link href="/privacy" className="hover:text-nestie-black transition-colors">Privacy Policy</Link></li>
+              <li><Link href="/terms" className="hover:text-nestie-black transition-colors">Terms of Service</Link></li>
             </ul>
           </div>
         </div>
