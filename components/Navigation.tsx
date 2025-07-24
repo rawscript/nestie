@@ -76,7 +76,7 @@ export function Navigation({ userRole, showAuthButtons = false }: NavigationProp
                 return (
                   <Link key={item.href} href={item.href}>
                     <Button 
-                      variant={isActive ? "default" : "ghost"} 
+                      variant={isActive ? "primary" : "ghost"} 
                       size="sm"
                       className={isActive ? "bg-nestie-black text-nestie-white" : ""}
                     >
