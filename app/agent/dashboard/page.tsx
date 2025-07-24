@@ -13,7 +13,28 @@ import {
   Clock,
   X,
   Eye,
-  MessageCircle
+  MessageCircle,
+  Plus,
+  Building,
+  MapPin,
+  Camera,
+  Upload,
+  Edit,
+  Trash2,
+  Star,
+  Bed,
+  Bath,
+  Car,
+  Wifi,
+  Waves,
+  Shield,
+  Phone,
+  Mail,
+  Save,
+  Search,
+  Filter,
+  Grid,
+  List
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
@@ -27,7 +48,63 @@ export default function AgentDashboard() {
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [propertiesWithTenancies, setPropertiesWithTenancies] = useState<any[]>([])
+  const [allProperties, setAllProperties] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Property management state
+  const [showAddPropertyModal, setShowAddPropertyModal] = useState(false)
+  const [showPropertyDetailsModal, setShowPropertyDetailsModal] = useState(false)
+  const [selectedProperty, setSelectedProperty] = useState<any>(null)
+  const [propertyViewMode, setPropertyViewMode] = useState<'grid' | 'list'>('grid')
+  const [propertyFilter, setPropertyFilter] = useState('all') // all, available, occupied, for_sale
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // New property form state
+  const [newProperty, setNewProperty] = useState({
+    title: '',
+    description: '',
+    type: 'apartment', // apartment, house, commercial
+    listingType: 'rent', // rent, sale, lease
+    price: '',
+    location: {
+      address: '',
+      city: '',
+      county: '',
+      coordinates: { lat: 0, lng: 0 }
+    },
+    specifications: {
+      bedrooms: 1,
+      bathrooms: 1,
+      area: '',
+      parking: false,
+      furnished: false,
+      petFriendly: false
+    },
+    amenities: {
+      wifi: false,
+      pool: false,
+      gym: false,
+      security: false,
+      garden: false,
+      balcony: false,
+      aircon: false,
+      heating: false
+    },
+    images: [] as string[],
+    contactInfo: {
+      phone: '',
+      email: user?.email || '',
+      whatsapp: ''
+    },
+    terms: {
+      deposit: '',
+      leasePeriod: '12', // months
+      paymentMethod: 'monthly',
+      utilities: 'excluded' // included, excluded, partial
+    }
+  })
+
+  const [uploadingImages, setUploadingImages] = useState(false)
 
   useEffect(() => {
     if (!user) {
@@ -112,6 +189,165 @@ export default function AgentDashboard() {
     )
   }
 
+  // Property management functions
+  const handleAddProperty = async () => {
+    try {
+      // Validate user and required fields
+      if (!user) {
+        toast.error('User not authenticated')
+        return
+      }
+
+      if (!newProperty.title || !newProperty.price || !newProperty.location.address) {
+        toast.error('Please fill in all required fields')
+        return
+      }
+
+      // Create property listing
+      const propertyData = {
+        ...newProperty,
+        agent_id: user.id,
+        status: 'available',
+        created_at: new Date().toISOString()
+      }
+
+      // API call to create property
+      const response = await fetch('/api/properties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(propertyData)
+      })
+
+      if (!response.ok) throw new Error('Failed to create property')
+
+      toast.success('Property listed successfully!')
+      setShowAddPropertyModal(false)
+      resetPropertyForm()
+      loadAgentData()
+    } catch (error) {
+      console.error('Error adding property:', error)
+      toast.error('Failed to add property')
+    }
+  }
+
+  const handleImageUpload = async (files: FileList) => {
+    setUploadingImages(true)
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const formData = new FormData()
+        formData.append('file', file)
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        })
+
+        if (!response.ok) throw new Error('Upload failed')
+        const { url } = await response.json()
+        return url
+      })
+
+      const imageUrls = await Promise.all(uploadPromises)
+      setNewProperty(prev => ({
+        ...prev,
+        images: [...prev.images, ...imageUrls]
+      }))
+
+      toast.success('Images uploaded successfully!')
+    } catch (error) {
+      console.error('Error uploading images:', error)
+      toast.error('Failed to upload images')
+    } finally {
+      setUploadingImages(false)
+    }
+  }
+
+  const handleRemoveImage = (index: number) => {
+    setNewProperty(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }))
+  }
+
+  const resetPropertyForm = () => {
+    setNewProperty({
+      title: '',
+      description: '',
+      type: 'apartment',
+      listingType: 'rent',
+      price: '',
+      location: {
+        address: '',
+        city: '',
+        county: '',
+        coordinates: { lat: 0, lng: 0 }
+      },
+      specifications: {
+        bedrooms: 1,
+        bathrooms: 1,
+        area: '',
+        parking: false,
+        furnished: false,
+        petFriendly: false
+      },
+      amenities: {
+        wifi: false,
+        pool: false,
+        gym: false,
+        security: false,
+        garden: false,
+        balcony: false,
+        aircon: false,
+        heating: false
+      },
+      images: [],
+      contactInfo: {
+        phone: '',
+        email: user?.email || '',
+        whatsapp: ''
+      },
+      terms: {
+        deposit: '',
+        leasePeriod: '12',
+        paymentMethod: 'monthly',
+        utilities: 'excluded'
+      }
+    })
+  }
+
+  const handlePropertyAction = async (propertyId: string, action: 'edit' | 'delete' | 'view') => {
+    if (action === 'delete') {
+      if (confirm('Are you sure you want to delete this property?')) {
+        try {
+          const response = await fetch(`/api/properties/${propertyId}`, {
+            method: 'DELETE'
+          })
+          if (!response.ok) throw new Error('Failed to delete property')
+          toast.success('Property deleted successfully!')
+          loadAgentData()
+        } catch (error) {
+          toast.error('Failed to delete property')
+        }
+      }
+    } else if (action === 'view') {
+      const property = allProperties.find(p => p.id === propertyId)
+      setSelectedProperty(property)
+      setShowPropertyDetailsModal(true)
+    }
+  }
+
+  const filteredProperties = allProperties.filter(property => {
+    const matchesFilter = propertyFilter === 'all' ||
+      (propertyFilter === 'available' && property.status === 'available') ||
+      (propertyFilter === 'occupied' && property.status === 'occupied') ||
+      (propertyFilter === 'for_sale' && property.listingType === 'sale')
+
+    const matchesSearch = property.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      property.location.address.toLowerCase().includes(searchQuery.toLowerCase())
+
+    return matchesFilter && matchesSearch
+  })
+
   if (!user || loading) {
     return (
       <div className="min-h-screen bg-nestie-grey-50 flex items-center justify-center">
@@ -178,6 +414,7 @@ export default function AgentDashboard() {
               <ul className="space-y-2">
                 {[
                   { id: 'overview', label: 'Overview', icon: Home },
+                  { id: 'listings', label: 'Listings', icon: Building },
                   { id: 'transactions', label: 'Transactions', icon: MessageCircle, badge: pendingTransactions.length },
                   { id: 'properties', label: 'Properties', icon: Users },
                   { id: 'notifications', label: 'Notifications', icon: Bell, badge: unreadNotifications },
@@ -347,6 +584,179 @@ export default function AgentDashboard() {
               </div>
             )}
 
+            {activeTab === 'listings' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-2xl font-bold text-nestie-black mb-2">Property Listings</h1>
+                    <p className="text-nestie-grey-600">Manage your property listings and availability.</p>
+                  </div>
+                  <button
+                    onClick={() => setShowAddPropertyModal(true)}
+                    className="bg-nestie-black text-white px-4 py-2 rounded-lg hover:bg-nestie-grey-800 flex items-center"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Property
+                  </button>
+                </div>
+
+                {/* Search and Filter Bar */}
+                <div className="bg-nestie-white rounded-xl border border-nestie-grey-200 p-4">
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex-1 relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-nestie-grey-400" />
+                      <input
+                        type="text"
+                        placeholder="Search properties..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                      />
+                    </div>
+                    <select
+                      value={propertyFilter}
+                      onChange={(e) => setPropertyFilter(e.target.value)}
+                      className="px-4 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    >
+                      <option value="all">All Properties</option>
+                      <option value="available">Available</option>
+                      <option value="occupied">Occupied</option>
+                      <option value="for_sale">For Sale</option>
+                    </select>
+                    <div className="flex border border-nestie-grey-300 rounded-lg">
+                      <button
+                        onClick={() => setPropertyViewMode('grid')}
+                        className={`p-2 ${propertyViewMode === 'grid' ? 'bg-nestie-black text-white' : 'text-nestie-grey-600'}`}
+                      >
+                        <Grid className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setPropertyViewMode('list')}
+                        className={`p-2 ${propertyViewMode === 'list' ? 'bg-nestie-black text-white' : 'text-nestie-grey-600'}`}
+                      >
+                        <List className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Properties Grid/List */}
+                <div className={propertyViewMode === 'grid' ? 'grid md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
+                  {filteredProperties.map((property) => (
+                    <div key={property.id} className="bg-nestie-white rounded-xl border border-nestie-grey-200 overflow-hidden">
+                      {/* Property Image */}
+                      <div className="relative h-48 bg-nestie-grey-200">
+                        {property.images && property.images.length > 0 ? (
+                          <img
+                            src={property.images[0]}
+                            alt={property.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Home className="h-12 w-12 text-nestie-grey-400" />
+                          </div>
+                        )}
+                        <div className="absolute top-2 right-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${property.status === 'available' ? 'bg-green-100 text-green-800' :
+                            property.status === 'occupied' ? 'bg-blue-100 text-blue-800' :
+                              'bg-orange-100 text-orange-800'
+                            }`}>
+                            {property.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Property Details */}
+                      <div className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <h3 className="font-semibold text-nestie-black text-lg">{property.title}</h3>
+                          <div className="flex space-x-1">
+                            <button
+                              onClick={() => handlePropertyAction(property.id, 'view')}
+                              className="p-1 text-nestie-grey-600 hover:text-nestie-black"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handlePropertyAction(property.id, 'edit')}
+                              className="p-1 text-nestie-grey-600 hover:text-nestie-black"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handlePropertyAction(property.id, 'delete')}
+                              className="p-1 text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center text-nestie-grey-600 mb-2">
+                          <MapPin className="h-4 w-4 mr-1" />
+                          <span className="text-sm">{property.location?.address}</span>
+                        </div>
+
+                        <div className="flex items-center space-x-4 text-sm text-nestie-grey-600 mb-3">
+                          <div className="flex items-center">
+                            <Bed className="h-4 w-4 mr-1" />
+                            <span>{property.specifications?.bedrooms} bed</span>
+                          </div>
+                          <div className="flex items-center">
+                            <Bath className="h-4 w-4 mr-1" />
+                            <span>{property.specifications?.bathrooms} bath</span>
+                          </div>
+                          {property.specifications?.area && (
+                            <span>{property.specifications.area} sqft</span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-2xl font-bold text-nestie-black">
+                              KSh {parseInt(property.price).toLocaleString()}
+                            </span>
+                            <span className="text-nestie-grey-500 text-sm">
+                              /{property.listingType === 'rent' ? 'month' : property.listingType}
+                            </span>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${property.listingType === 'rent' ? 'bg-blue-100 text-blue-800' :
+                            property.listingType === 'sale' ? 'bg-green-100 text-green-800' :
+                              'bg-purple-100 text-purple-800'
+                            }`}>
+                            For {property.listingType}
+                          </span>
+                        </div>
+
+                        {/* Amenities Icons */}
+                        <div className="flex items-center space-x-2 mt-3 pt-3 border-t border-nestie-grey-200">
+                          {property.amenities?.wifi && <Wifi className="h-4 w-4 text-nestie-grey-600" />}
+                          {property.amenities?.pool && <Waves className="h-4 w-4 text-blue-500" />}
+                          {property.specifications?.parking && <Car className="h-4 w-4 text-nestie-grey-600" />}
+                          {property.amenities?.security && <Shield className="h-4 w-4 text-green-500" />}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {filteredProperties.length === 0 && (
+                  <div className="bg-nestie-white rounded-xl border border-nestie-grey-200 p-12 text-center">
+                    <Building className="h-12 w-12 text-nestie-grey-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-nestie-black mb-2">No properties found</h3>
+                    <p className="text-nestie-grey-600 mb-4">Start by adding your first property listing.</p>
+                    <button
+                      onClick={() => setShowAddPropertyModal(true)}
+                      className="bg-nestie-black text-white px-4 py-2 rounded-lg hover:bg-nestie-grey-800"
+                    >
+                      Add Property
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === 'properties' && (
               <div className="space-y-6">
                 <div>
@@ -444,6 +854,586 @@ export default function AgentDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Add Property Modal */}
+      {showAddPropertyModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-nestie-grey-200 p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-nestie-black">Add New Property</h2>
+                <button onClick={() => setShowAddPropertyModal(false)}>
+                  <X className="h-6 w-6 text-nestie-grey-500" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-8">
+              {/* Basic Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-nestie-black mb-4">Basic Information</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Property Title *
+                    </label>
+                    <input
+                      type="text"
+                      value={newProperty.title}
+                      onChange={(e) => setNewProperty({ ...newProperty, title: e.target.value })}
+                      placeholder="Modern 2BR Apartment in Westlands"
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Property Type
+                    </label>
+                    <select
+                      value={newProperty.type}
+                      onChange={(e) => setNewProperty({ ...newProperty, type: e.target.value })}
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    >
+                      <option value="apartment">Apartment</option>
+                      <option value="house">House</option>
+                      <option value="commercial">Commercial</option>
+                      <option value="land">Land</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Listing Type
+                    </label>
+                    <select
+                      value={newProperty.listingType}
+                      onChange={(e) => setNewProperty({ ...newProperty, listingType: e.target.value })}
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    >
+                      <option value="rent">For Rent</option>
+                      <option value="sale">For Sale</option>
+                      <option value="lease">For Lease</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Price (KSh) *
+                    </label>
+                    <input
+                      type="number"
+                      value={newProperty.price}
+                      onChange={(e) => setNewProperty({ ...newProperty, price: e.target.value })}
+                      placeholder="50000"
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={newProperty.description}
+                    onChange={(e) => setNewProperty({ ...newProperty, description: e.target.value })}
+                    placeholder="Describe your property..."
+                    rows={4}
+                    className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Location */}
+              <div>
+                <h3 className="text-lg font-semibold text-nestie-black mb-4">Location</h3>
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Address *
+                    </label>
+                    <input
+                      type="text"
+                      value={newProperty.location.address}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        location: { ...newProperty.location, address: e.target.value }
+                      })}
+                      placeholder="123 Main Street, Westlands"
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      value={newProperty.location.city}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        location: { ...newProperty.location, city: e.target.value }
+                      })}
+                      placeholder="Nairobi"
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      County
+                    </label>
+                    <input
+                      type="text"
+                      value={newProperty.location.county}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        location: { ...newProperty.location, county: e.target.value }
+                      })}
+                      placeholder="Nairobi County"
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Specifications */}
+              <div>
+                <h3 className="text-lg font-semibold text-nestie-black mb-4">Specifications</h3>
+                <div className="grid md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Bedrooms
+                    </label>
+                    <input
+                      type="number"
+                      value={newProperty.specifications.bedrooms}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        specifications: { ...newProperty.specifications, bedrooms: parseInt(e.target.value) }
+                      })}
+                      min="0"
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Bathrooms
+                    </label>
+                    <input
+                      type="number"
+                      value={newProperty.specifications.bathrooms}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        specifications: { ...newProperty.specifications, bathrooms: parseInt(e.target.value) }
+                      })}
+                      min="0"
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Area (sqft)
+                    </label>
+                    <input
+                      type="text"
+                      value={newProperty.specifications.area}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        specifications: { ...newProperty.specifications, area: e.target.value }
+                      })}
+                      placeholder="1200"
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-4 mt-4">
+                  {[
+                    { key: 'parking', label: 'Parking Available' },
+                    { key: 'furnished', label: 'Furnished' },
+                    { key: 'petFriendly', label: 'Pet Friendly' }
+                  ].map((spec) => (
+                    <label key={spec.key} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={newProperty.specifications[spec.key as keyof typeof newProperty.specifications] as boolean}
+                        onChange={(e) => setNewProperty({
+                          ...newProperty,
+                          specifications: {
+                            ...newProperty.specifications,
+                            [spec.key]: e.target.checked
+                          }
+                        })}
+                        className="rounded border-nestie-grey-300 text-nestie-black focus:ring-nestie-black"
+                      />
+                      <span className="text-sm text-nestie-grey-700">{spec.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Amenities */}
+              <div>
+                <h3 className="text-lg font-semibold text-nestie-black mb-4">Amenities</h3>
+                <div className="grid md:grid-cols-4 gap-4">
+                  {[
+                    { key: 'wifi', label: 'WiFi', icon: Wifi },
+                    { key: 'pool', label: 'Swimming Pool', icon: Waves },
+                    { key: 'gym', label: 'Gym', icon: Building },
+                    { key: 'security', label: '24/7 Security', icon: Shield },
+                    { key: 'garden', label: 'Garden', icon: Building },
+                    { key: 'balcony', label: 'Balcony', icon: Building },
+                    { key: 'aircon', label: 'Air Conditioning', icon: Building },
+                    { key: 'heating', label: 'Heating', icon: Building }
+                  ].map((amenity) => (
+                    <label key={amenity.key} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={newProperty.amenities[amenity.key as keyof typeof newProperty.amenities]}
+                        onChange={(e) => setNewProperty({
+                          ...newProperty,
+                          amenities: {
+                            ...newProperty.amenities,
+                            [amenity.key]: e.target.checked
+                          }
+                        })}
+                        className="rounded border-nestie-grey-300 text-nestie-black focus:ring-nestie-black"
+                      />
+                      <span className="text-sm text-nestie-grey-700">{amenity.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Images */}
+              <div>
+                <h3 className="text-lg font-semibold text-nestie-black mb-4">Property Images</h3>
+                <div className="border-2 border-dashed border-nestie-grey-300 rounded-lg p-6">
+                  <div className="text-center">
+                    <Camera className="h-12 w-12 text-nestie-grey-400 mx-auto mb-4" />
+                    <p className="text-nestie-grey-600 mb-4">Upload property images</p>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => e.target.files && handleImageUpload(e.target.files)}
+                      className="hidden"
+                      id="image-upload"
+                    />
+                    <label
+                      htmlFor="image-upload"
+                      className="bg-nestie-black text-white px-4 py-2 rounded-lg hover:bg-nestie-grey-800 cursor-pointer inline-flex items-center"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {uploadingImages ? 'Uploading...' : 'Choose Images'}
+                    </label>
+                  </div>
+                </div>
+
+                {/* Image Preview */}
+                {newProperty.images.length > 0 && (
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-4 mt-4">
+                    {newProperty.images.map((image, index) => (
+                      <div key={index} className="relative">
+                        <img
+                          src={image}
+                          alt={`Property ${index + 1}`}
+                          className="w-full h-20 object-cover rounded-lg"
+                        />
+                        <button
+                          onClick={() => handleRemoveImage(index)}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Contact Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-nestie-black mb-4">Contact Information</h3>
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={newProperty.contactInfo.phone}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        contactInfo: { ...newProperty.contactInfo, phone: e.target.value }
+                      })}
+                      placeholder="+254712345678"
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={newProperty.contactInfo.email}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        contactInfo: { ...newProperty.contactInfo, email: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      WhatsApp
+                    </label>
+                    <input
+                      type="tel"
+                      value={newProperty.contactInfo.whatsapp}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        contactInfo: { ...newProperty.contactInfo, whatsapp: e.target.value }
+                      })}
+                      placeholder="+254712345678"
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Terms & Conditions */}
+              <div>
+                <h3 className="text-lg font-semibold text-nestie-black mb-4">Terms & Conditions</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Security Deposit (KSh)
+                    </label>
+                    <input
+                      type="number"
+                      value={newProperty.terms.deposit}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        terms: { ...newProperty.terms, deposit: e.target.value }
+                      })}
+                      placeholder="100000"
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Lease Period (months)
+                    </label>
+                    <select
+                      value={newProperty.terms.leasePeriod}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        terms: { ...newProperty.terms, leasePeriod: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    >
+                      <option value="6">6 months</option>
+                      <option value="12">12 months</option>
+                      <option value="24">24 months</option>
+                      <option value="36">36 months</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Payment Method
+                    </label>
+                    <select
+                      value={newProperty.terms.paymentMethod}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        terms: { ...newProperty.terms, paymentMethod: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="annually">Annually</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                      Utilities
+                    </label>
+                    <select
+                      value={newProperty.terms.utilities}
+                      onChange={(e) => setNewProperty({
+                        ...newProperty,
+                        terms: { ...newProperty.terms, utilities: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                    >
+                      <option value="included">Included</option>
+                      <option value="excluded">Excluded</option>
+                      <option value="partial">Partially Included</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="sticky bottom-0 bg-white border-t border-nestie-grey-200 p-6">
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => setShowAddPropertyModal(false)}
+                  className="flex-1 px-4 py-2 border border-nestie-grey-300 text-nestie-grey-700 rounded-lg hover:bg-nestie-grey-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddProperty}
+                  className="flex-1 px-4 py-2 bg-nestie-black text-white rounded-lg hover:bg-nestie-grey-800 flex items-center justify-center"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  List Property
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Property Details Modal */}
+      {showPropertyDetailsModal && selectedProperty && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-nestie-grey-200 p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-nestie-black">{selectedProperty.title}</h2>
+                <button onClick={() => setShowPropertyDetailsModal(false)}>
+                  <X className="h-6 w-6 text-nestie-grey-500" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {/* Property Images */}
+              {selectedProperty.images && selectedProperty.images.length > 0 && (
+                <div className="mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {selectedProperty.images.map((image: string, index: number) => (
+                      <img
+                        key={index}
+                        src={image}
+                        alt={`${selectedProperty.title} ${index + 1}`}
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Property Details */}
+              <div className="grid md:grid-cols-2 gap-8">
+                <div>
+                  <h3 className="text-lg font-semibold text-nestie-black mb-4">Property Details</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-nestie-grey-600">Type:</span>
+                      <span className="font-medium">{selectedProperty.type}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-nestie-grey-600">Listing Type:</span>
+                      <span className="font-medium">For {selectedProperty.listingType}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-nestie-grey-600">Price:</span>
+                      <span className="font-medium">KSh {parseInt(selectedProperty.price).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-nestie-grey-600">Status:</span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${selectedProperty.status === 'available' ? 'bg-green-100 text-green-800' :
+                        selectedProperty.status === 'occupied' ? 'bg-blue-100 text-blue-800' :
+                          'bg-orange-100 text-orange-800'
+                        }`}>
+                        {selectedProperty.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <h4 className="text-md font-semibold text-nestie-black mt-6 mb-3">Specifications</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-nestie-grey-600">Bedrooms:</span>
+                      <span>{selectedProperty.specifications?.bedrooms}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-nestie-grey-600">Bathrooms:</span>
+                      <span>{selectedProperty.specifications?.bathrooms}</span>
+                    </div>
+                    {selectedProperty.specifications?.area && (
+                      <div className="flex justify-between">
+                        <span className="text-nestie-grey-600">Area:</span>
+                        <span>{selectedProperty.specifications.area} sqft</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-semibold text-nestie-black mb-4">Location & Contact</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-nestie-grey-600">Address:</span>
+                      <p className="font-medium">{selectedProperty.location?.address}</p>
+                    </div>
+                    {selectedProperty.location?.city && (
+                      <div>
+                        <span className="text-nestie-grey-600">City:</span>
+                        <p className="font-medium">{selectedProperty.location.city}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <h4 className="text-md font-semibold text-nestie-black mt-6 mb-3">Contact Information</h4>
+                  <div className="space-y-2">
+                    {selectedProperty.contactInfo?.phone && (
+                      <div className="flex items-center">
+                        <Phone className="h-4 w-4 text-nestie-grey-600 mr-2" />
+                        <span>{selectedProperty.contactInfo.phone}</span>
+                      </div>
+                    )}
+                    {selectedProperty.contactInfo?.email && (
+                      <div className="flex items-center">
+                        <Mail className="h-4 w-4 text-nestie-grey-600 mr-2" />
+                        <span>{selectedProperty.contactInfo.email}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Amenities */}
+                  {selectedProperty.amenities && (
+                    <>
+                      <h4 className="text-md font-semibold text-nestie-black mt-6 mb-3">Amenities</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(selectedProperty.amenities)
+                          .filter(([key, value]) => value === true)
+                          .map(([key]) => (
+                            <span key={key} className="px-2 py-1 bg-nestie-grey-100 text-nestie-grey-700 rounded-full text-xs">
+                              {key.charAt(0).toUpperCase() + key.slice(1)}
+                            </span>
+                          ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Description */}
+              {selectedProperty.description && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-nestie-black mb-3">Description</h3>
+                  <p className="text-nestie-grey-600">{selectedProperty.description}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
