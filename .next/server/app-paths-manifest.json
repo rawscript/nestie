@@ -1,21 +1,9 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
-  "/auth/login/page": "app/auth/login/page.js",
-  "/agent/dashboard/page": "app/agent/dashboard/page.js",
-  "/auth/signup/page": "app/auth/signup/page.js",
-  "/agent/properties/add/page": "app/agent/properties/add/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/contact/page": "app/contact/page.js",
-  "/messages/page": "app/messages/page.js",
   "/page": "app/page.js",
-  "/features/page": "app/features/page.js",
   "/help/page": "app/help/page.js",
-  "/properties/page": "app/properties/page.js",
-  "/privacy/page": "app/privacy/page.js",
-  "/property/[id]/book/page": "app/property/[id]/book/page.js",
-  "/profile/page": "app/profile/page.js",
-  "/tenant/portal/page": "app/tenant/portal/page.js",
+  "/contact/page": "app/contact/page.js",
   "/role-selection/page": "app/role-selection/page.js",
-  "/property/[id]/page": "app/property/[id]/page.js",
-  "/terms/page": "app/terms/page.js"
+  "/dashboard/page": "app/dashboard/page.js",
+  "/auth/login/page": "app/auth/login/page.js",
+  "/auth/signup/page": "app/auth/signup/page.js"
 }
