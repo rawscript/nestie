@@ -498,7 +498,7 @@ export default function LandingPage() {
 
         <div className="border-t border-nestie-grey-200 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-nestie-grey-500 text-sm mb-4 md:mb-0">
-            © 2024 Nestie. All rights reserved.
+            © 2025 Nestie. All rights reserved.
           </p>
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-2">
@@ -512,6 +512,7 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
+      
       </footer >
     </div >
     </>

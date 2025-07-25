@@ -30,6 +30,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        {/* Google tag (gtag.js) */}
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-MMTKWZ1ZMG"></script>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-MMTKWZ1ZMG');
+            `,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} ${playfair.variable} min-h-screen bg-nestie-white antialiased`}>
         <AuthProvider>
           {children}
