@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { DatabaseService } from '@/lib/database'
+import { SimpleDatabase } from '@/lib/simpleDatabase'
 
 export async function GET(request: NextRequest) {
   try {
-    const result = await DatabaseService.getProperties()
+    const result = await SimpleDatabase.getProperties()
 
     return NextResponse.json({
       ...result,
@@ -11,8 +11,7 @@ export async function GET(request: NextRequest) {
       timestamp: Date.now()
     }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-        'X-Performance-Metrics': JSON.stringify(DatabaseService.getMetrics())
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
       }
     })
 

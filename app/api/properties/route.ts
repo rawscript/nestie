@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { DatabaseService } from '@/lib/database'
+import { SimpleDatabase } from '@/lib/simpleDatabase'
+
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
 
 // GET - Fetch all properties (with optional filters)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    
+
     // Extract query parameters
     const filters = {
       type: searchParams.get('type'),
@@ -21,7 +24,7 @@ export async function GET(request: NextRequest) {
       Object.entries(filters).filter(([_, value]) => value !== null && value !== undefined)
     )
 
-    const result = await DatabaseService.getProperties(cleanFilters)
+    const result = await SimpleDatabase.getProperties(cleanFilters)
 
     return NextResponse.json({
       ...result,
@@ -29,16 +32,15 @@ export async function GET(request: NextRequest) {
       timestamp: Date.now()
     }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-        'X-Performance-Metrics': JSON.stringify(DatabaseService.getMetrics())
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
       }
     })
 
   } catch (error) {
     console.error('Properties API error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       error: 'Internal server error',
       success: false,
       details: process.env.NODE_ENV === 'development' ? errorMessage : undefined

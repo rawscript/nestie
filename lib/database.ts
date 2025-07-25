@@ -28,17 +28,9 @@ export class DatabaseService {
           amenities,
           terms,
           created_at,
-          agent_id,
-          agent:profiles!inner(
-            id,
-            full_name,
-            email,
-            phone,
-            verified
-          )
+          agent_id
         `)
         .eq('status', 'available')
-        .eq('profiles.verified', true)
         .order('created_at', { ascending: false })
         .limit(50)
 
@@ -87,17 +79,9 @@ export class DatabaseService {
           amenities,
           terms,
           created_at,
-          agent_id,
-          agent:profiles!inner(
-            id,
-            full_name,
-            email,
-            phone,
-            verified
-          )
+          agent_id
         `)
         .eq('status', 'available')
-        .eq('profiles.verified', true)
         .limit(100)
 
       // Text search optimization
@@ -271,11 +255,9 @@ export const CommonQueries = {
     QueryBuilder.properties()
       .select(`
         id, title, description, price, type, status, images, location,
-        specifications, amenities, terms, created_at, agent_id,
-        agent:profiles!inner(id, full_name, email, phone, verified)
+        specifications, amenities, terms, created_at, agent_id
       `)
       .eq('status', 'available')
-      .eq('profiles.verified', true)
       .order('created_at', { ascending: false })
       .limit(limit),
 

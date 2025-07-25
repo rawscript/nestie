@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { DatabaseService } from '@/lib/database'
+import { SimpleDatabase } from '@/lib/simpleDatabase'
 
 export async function POST(request: NextRequest) {
   try {
     const searchParams = await request.json()
     
-    // Normalize search parameters for the optimized database service
+    // Normalize search parameters for the simplified database service
     const normalizedParams = {
       query: searchParams.query || searchParams.keywordDescription,
       location: searchParams.location || searchParams.filters?.location,
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       estate: searchParams.estate || searchParams.filters?.estate
     }
 
-    const result = await DatabaseService.searchProperties(normalizedParams)
+    const result = await SimpleDatabase.searchProperties(normalizedParams)
 
     return NextResponse.json({
       ...result,
@@ -27,8 +27,7 @@ export async function POST(request: NextRequest) {
       timestamp: Date.now()
     }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-        'X-Performance-Metrics': JSON.stringify(DatabaseService.getMetrics())
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
       }
     })
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Search,
@@ -71,7 +71,7 @@ interface Property {
   reviews?: number
 }
 
-export default function PropertySearch() {
+function PropertySearchContent() {
   const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -430,8 +430,8 @@ export default function PropertySearch() {
                       handleSaveProperty(property.id)
                     }}
                     className={`absolute top-3 right-3 p-2 rounded-full ${savedProperties.includes(property.id)
-                        ? 'bg-red-500 text-white'
-                        : 'bg-white text-nestie-grey-600 hover:text-red-500'
+                      ? 'bg-red-500 text-white'
+                      : 'bg-white text-nestie-grey-600 hover:text-red-500'
                       } shadow-md transition-colors`}
                   >
                     <Heart className={`h-4 w-4 ${savedProperties.includes(property.id) ? 'fill-current' : ''}`} />
@@ -440,8 +440,8 @@ export default function PropertySearch() {
                   {/* Status Badge */}
                   <div className="absolute top-3 left-3">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${property.listingType === 'rent' ? 'bg-blue-100 text-blue-800' :
-                        property.listingType === 'sale' ? 'bg-green-100 text-green-800' :
-                          'bg-purple-100 text-purple-800'
+                      property.listingType === 'sale' ? 'bg-green-100 text-green-800' :
+                        'bg-purple-100 text-purple-800'
                       }`}>
                       For {property.listingType}
                     </span>
@@ -529,5 +529,23 @@ export default function PropertySearch() {
         )}
       </div>
     </div>
+  )
+}
+
+// Loading component for Suspense fallback
+function SearchPageLoading() {
+  return (
+    <div className="min-h-screen bg-nestie-grey-50 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-nestie-black"></div>
+    </div>
+  )
+}
+
+// Main component with Suspense wrapper
+export default function PropertySearch() {
+  return (
+    <Suspense fallback={<SearchPageLoading />}>
+      <PropertySearchContent />
+    </Suspense>
   )
 }
