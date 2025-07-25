@@ -137,7 +137,29 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 18. Create a scheduled job to run cleanup (if pg_cron is available)
+-- 18. Create saved_properties table if it doesn't exist
+CREATE TABLE IF NOT EXISTS saved_properties (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  property_id UUID REFERENCES properties(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, property_id)
+);
+
+-- 19. Add indexes for saved_properties
+CREATE INDEX IF NOT EXISTS idx_saved_properties_user_id ON saved_properties(user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_properties_property_id ON saved_properties(property_id);
+CREATE INDEX IF NOT EXISTS idx_saved_properties_created_at ON saved_properties(created_at);
+
+-- 20. Add RLS for saved_properties
+ALTER TABLE saved_properties ENABLE ROW LEVEL SECURITY;
+
+-- Users can only see and manage their own saved properties
+DROP POLICY IF EXISTS "Users can manage own saved properties" ON saved_properties;
+CREATE POLICY "Users can manage own saved properties" ON saved_properties
+  FOR ALL USING (auth.uid() = user_id);
+
+-- 21. Create a scheduled job to run cleanup (if pg_cron is available)
 -- SELECT cron.schedule('cleanup-old-data', '0 2 * * 0', 'SELECT cleanup_old_data();');
 
 COMMIT;

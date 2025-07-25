@@ -75,12 +75,12 @@ export default function PropertySearch() {
   const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
-  
+
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [savedProperties, setSavedProperties] = useState<string[]>([])
-  
+
   // Search filters
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
   const [location, setLocation] = useState(searchParams.get('location') || '')
@@ -108,6 +108,40 @@ export default function PropertySearch() {
   const handleSearch = async () => {
     setLoading(true)
     try {
+      // Prepare search parameters for the optimized API
+      const searchParams = {
+        query: searchQuery,
+        filters: {
+          location: location,
+          propertyType: propertyType,
+          listingType: listingType,
+          priceRange: {
+            min: priceRange.min,
+            max: priceRange.max
+          },
+          bedrooms: bedrooms,
+          bathrooms: bathrooms,
+          amenities: amenities.reduce((acc, amenity) => {
+            acc[amenity] = true
+            return acc
+          }, {} as Record<string, boolean>)
+        }
+      }
+
+      const response = await fetch('/api/properties/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(searchParams)
+      })
+
+      if (!response.ok) throw new Error('Search failed')
+
+      const data = await response.json()
+      setProperties(data.data || [])
+
+      // Update URL with search params for bookmarking
       const params = new URLSearchParams()
       if (searchQuery) params.append('q', searchQuery)
       if (location) params.append('location', location)
@@ -119,16 +153,9 @@ export default function PropertySearch() {
       if (bathrooms !== 'any') params.append('bathrooms', bathrooms)
       if (amenities.length > 0) params.append('amenities', amenities.join(','))
 
-      const response = await fetch(`/api/properties/search?${params.toString()}`)
-      if (!response.ok) throw new Error('Search failed')
-      
-      const data = await response.json()
-      setProperties(data.properties || [])
-      
-      // Update URL with search params
       const newUrl = `/search?${params.toString()}`
       window.history.replaceState({}, '', newUrl)
-      
+
     } catch (error) {
       console.error('Search error:', error)
       toast.error('Failed to search properties')
@@ -160,7 +187,7 @@ export default function PropertySearch() {
     try {
       const isSaved = savedProperties.includes(propertyId)
       const method = isSaved ? 'DELETE' : 'POST'
-      
+
       const response = await fetch('/api/properties/saved', {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -277,7 +304,7 @@ export default function PropertySearch() {
                   type="number"
                   placeholder="Min Price"
                   value={priceRange.min}
-                  onChange={(e) => setPriceRange({...priceRange, min: e.target.value})}
+                  onChange={(e) => setPriceRange({ ...priceRange, min: e.target.value })}
                   className="px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
                 />
 
@@ -285,7 +312,7 @@ export default function PropertySearch() {
                   type="number"
                   placeholder="Max Price"
                   value={priceRange.max}
-                  onChange={(e) => setPriceRange({...priceRange, max: e.target.value})}
+                  onChange={(e) => setPriceRange({ ...priceRange, max: e.target.value })}
                   className="px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
                 />
 
@@ -378,9 +405,8 @@ export default function PropertySearch() {
             {properties.map((property) => (
               <div
                 key={property.id}
-                className={`bg-nestie-white rounded-xl border border-nestie-grey-200 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer ${
-                  viewMode === 'list' ? 'flex' : ''
-                }`}
+                className={`bg-nestie-white rounded-xl border border-nestie-grey-200 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer ${viewMode === 'list' ? 'flex' : ''
+                  }`}
                 onClick={() => handlePropertyClick(property.id)}
               >
                 {/* Property Image */}
@@ -396,29 +422,27 @@ export default function PropertySearch() {
                       <MapPin className="h-12 w-12 text-nestie-grey-400" />
                     </div>
                   )}
-                  
+
                   {/* Save Button */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       handleSaveProperty(property.id)
                     }}
-                    className={`absolute top-3 right-3 p-2 rounded-full ${
-                      savedProperties.includes(property.id)
+                    className={`absolute top-3 right-3 p-2 rounded-full ${savedProperties.includes(property.id)
                         ? 'bg-red-500 text-white'
                         : 'bg-white text-nestie-grey-600 hover:text-red-500'
-                    } shadow-md transition-colors`}
+                      } shadow-md transition-colors`}
                   >
                     <Heart className={`h-4 w-4 ${savedProperties.includes(property.id) ? 'fill-current' : ''}`} />
                   </button>
 
                   {/* Status Badge */}
                   <div className="absolute top-3 left-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      property.listingType === 'rent' ? 'bg-blue-100 text-blue-800' :
-                      property.listingType === 'sale' ? 'bg-green-100 text-green-800' :
-                      'bg-purple-100 text-purple-800'
-                    }`}>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${property.listingType === 'rent' ? 'bg-blue-100 text-blue-800' :
+                        property.listingType === 'sale' ? 'bg-green-100 text-green-800' :
+                          'bg-purple-100 text-purple-800'
+                      }`}>
                       For {property.listingType}
                     </span>
                   </div>
