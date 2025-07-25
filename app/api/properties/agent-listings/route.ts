@@ -1,45 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { DatabaseService } from '@/lib/database'
 
 export async function GET(request: NextRequest) {
   try {
-    // Get all available properties created by verified agents
-    const { data, error } = await supabase
-      .from('properties')
-      .select(`
-        *,
-        agent:profiles!properties_agent_id_fkey(
-          id,
-          full_name,
-          email,
-          phone,
-          company,
-          verified,
-          avatar_url
-        )
-      `)
-      .eq('created_by_agent', true)
-      .eq('status', 'available')
-      .not('agent_id', 'is', null)
-      .order('created_at', { ascending: false })
+    const result = await DatabaseService.getProperties()
 
-    if (error) {
-      console.error('Error fetching agent listings:', error)
-      return NextResponse.json({ error: 'Failed to fetch properties' }, { status: 500 })
-    }
-
-    // Filter to only include properties from verified agents
-    const verifiedAgentProperties = data?.filter(property => 
-      property.agent && property.agent.verified === true
-    ) || []
-
-    return NextResponse.json({ 
-      data: verifiedAgentProperties,
-      count: verifiedAgentProperties.length 
+    return NextResponse.json({
+      ...result,
+      success: true,
+      timestamp: Date.now()
+    }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        'X-Performance-Metrics': JSON.stringify(DatabaseService.getMetrics())
+      }
     })
 
   } catch (error) {
     console.error('Agent listings API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+
+    return NextResponse.json({
+      error: 'Internal server error',
+      success: false,
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+    }, { status: 500 })
   }
 }

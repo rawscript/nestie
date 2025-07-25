@@ -1,5 +1,7 @@
 .rhezusport
 
+.dist
+.dist/*
 node_modules
 
 #texteditor cache

@@ -152,6 +152,24 @@ export default function TenantPortal() {
     // Saved properties and favorites
     const [savedProperties, setSavedProperties] = useState<any[]>([])
 
+    // Chat interface state
+    const [showChatModal, setShowChatModal] = useState(false)
+    const [selectedAgent, setSelectedAgent] = useState<any>(null)
+    const [chatProperty, setChatProperty] = useState<any>(null)
+    const [chatMessages, setChatMessages] = useState<any[]>([])
+    const [newMessage, setNewMessage] = useState('')
+    const [sendingMessage, setSendingMessage] = useState(false)
+
+    // Tour scheduling state
+    const [showTourModal, setShowTourModal] = useState(false)
+    const [tourProperty, setTourProperty] = useState<any>(null)
+    const [tourDetails, setTourDetails] = useState({
+        preferredDate: '',
+        preferredTime: '',
+        message: ''
+    })
+    const [schedulingTour, setSchedulingTour] = useState(false)
+
     useEffect(() => {
         if (!user) {
             router.push('/auth/login')
@@ -372,17 +390,49 @@ export default function TenantPortal() {
         )
     }
 
-    // Enhanced search functionality with natural language processing - connects to agent listings
+    // Enhanced search functionality with robust location-based filtering
     const searchForProperties = async () => {
         setSearchLoading(true)
         try {
-            const searchParams = {
-                query: searchQuery,
-                keywordDescription: keywordDescription,
-                filters: searchFilters,
-                naturalLanguageSearch: true,
-                status: 'available', // Only show available properties from agents
-                includeAgentInfo: true // Include agent contact details
+            // Enhanced search logic with location prioritization
+            let searchParams: any = {
+                status: 'available',
+                includeAgentInfo: true
+            }
+
+            // If only location is provided (keyword box empty)
+            if (!keywordDescription.trim() && searchFilters.location.trim()) {
+                searchParams = {
+                    ...searchParams,
+                    locationOnly: true,
+                    location: searchFilters.location,
+                    region: searchFilters.region,
+                    estate: searchFilters.estate,
+                    filters: searchFilters
+                }
+            }
+            // If both keyword description and location are provided
+            else if (keywordDescription.trim() && searchFilters.location.trim()) {
+                searchParams = {
+                    ...searchParams,
+                    hybridSearch: true,
+                    keywordDescription: keywordDescription,
+                    location: searchFilters.location,
+                    region: searchFilters.region,
+                    estate: searchFilters.estate,
+                    filters: searchFilters,
+                    naturalLanguageSearch: true
+                }
+            }
+            // Standard search with keywords only
+            else {
+                searchParams = {
+                    ...searchParams,
+                    query: searchQuery,
+                    keywordDescription: keywordDescription,
+                    filters: searchFilters,
+                    naturalLanguageSearch: true
+                }
             }
 
             const response = await fetch('/api/properties/search', {
@@ -394,12 +444,22 @@ export default function TenantPortal() {
             if (!response.ok) throw new Error('Search failed')
 
             const { data } = await response.json()
-            // Filter to ensure we only show agent-created listings that are available
-            const agentListings = data?.filter((property: any) =>
+
+            // Enhanced filtering with location relevance scoring
+            let agentListings = data?.filter((property: any) =>
                 property.agent_id &&
                 property.status === 'available' &&
                 property.created_by_agent === true
             ) || []
+
+            // Sort by location relevance if location search is active
+            if (searchFilters.location.trim()) {
+                agentListings = agentListings.sort((a: any, b: any) => {
+                    const aLocationMatch = calculateLocationRelevance(a, searchFilters.location)
+                    const bLocationMatch = calculateLocationRelevance(b, searchFilters.location)
+                    return bLocationMatch - aLocationMatch
+                })
+            }
 
             setSearchProperties(agentListings)
         } catch (error) {
@@ -409,6 +469,20 @@ export default function TenantPortal() {
         } finally {
             setSearchLoading(false)
         }
+    }
+
+    // Calculate location relevance score for sorting
+    const calculateLocationRelevance = (property: any, searchLocation: string) => {
+        const location = searchLocation.toLowerCase()
+        let score = 0
+
+        if (property.location?.city?.toLowerCase().includes(location)) score += 10
+        if (property.location?.address?.toLowerCase().includes(location)) score += 8
+        if (property.location?.region?.toLowerCase().includes(location)) score += 6
+        if (property.location?.estate?.toLowerCase().includes(location)) score += 4
+        if (property.description?.toLowerCase().includes(location)) score += 2
+
+        return score
     }
 
     // Smart keyword parsing for natural language search
@@ -625,17 +699,202 @@ export default function TenantPortal() {
         setShowPropertyModal(true)
     }
 
-    const handleToggleFavorite = (propertyId: string) => {
-        setFavoriteProperties(prev =>
-            prev.includes(propertyId)
-                ? prev.filter(id => id !== propertyId)
-                : [...prev, propertyId]
-        )
-        toast.success(
-            favoriteProperties.includes(propertyId)
-                ? 'Removed from favorites'
-                : 'Added to favorites'
-        )
+    const handleToggleFavorite = async (propertyId: string) => {
+        if (!user) return
+
+        try {
+            const isCurrentlyFavorite = favoriteProperties.includes(propertyId)
+
+            if (isCurrentlyFavorite) {
+                // Remove from favorites
+                const response = await fetch(`/api/users/saved-properties/${propertyId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: user.id })
+                })
+
+                if (!response.ok) throw new Error('Failed to remove from favorites')
+
+                setFavoriteProperties(prev => prev.filter(id => id !== propertyId))
+                setSavedProperties(prev => prev.filter(p => p.id !== propertyId))
+                toast.success('Removed from favorites')
+            } else {
+                // Add to favorites
+                const response = await fetch('/api/users/saved-properties', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: user.id,
+                        property_id: propertyId
+                    })
+                })
+
+                if (!response.ok) throw new Error('Failed to add to favorites')
+
+                setFavoriteProperties(prev => [...prev, propertyId])
+                toast.success('Added to favorites')
+
+                // Reload saved properties to get the full property data
+                loadSavedProperties()
+            }
+        } catch (error) {
+            console.error('Error toggling favorite:', error)
+            toast.error('Failed to update favorites')
+        }
+    }
+
+    // Chat functionality
+    const handleMessageAgent = (property: any) => {
+        setSelectedAgent(property.agent)
+        setChatProperty(property)
+        setShowChatModal(true)
+        loadChatMessages(property.agent_id, property.id)
+    }
+
+    const loadChatMessages = async (agentId: string, propertyId: string) => {
+        if (!user) return
+
+        try {
+            const response = await fetch(`/api/chat/messages?tenant_id=${user.id}&agent_id=${agentId}&property_id=${propertyId}`)
+            if (response.ok) {
+                const { data } = await response.json()
+                setChatMessages(data || [])
+            }
+        } catch (error) {
+            console.error('Error loading chat messages:', error)
+        }
+    }
+
+    const sendMessage = async () => {
+        if (!user || !selectedAgent || !chatProperty || !newMessage.trim()) return
+
+        setSendingMessage(true)
+        try {
+            const messageData = {
+                sender_id: user.id,
+                recipient_id: selectedAgent.id,
+                property_id: chatProperty.id,
+                message: newMessage.trim(),
+                sender_type: 'tenant',
+                created_at: new Date().toISOString()
+            }
+
+            const response = await fetch('/api/chat/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(messageData)
+            })
+
+            if (!response.ok) throw new Error('Failed to send message')
+
+            const { data: newMsg } = await response.json()
+            setChatMessages(prev => [...prev, newMsg])
+            setNewMessage('')
+
+            // Send notification to agent
+            await fetch('/api/notifications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    recipient_id: selectedAgent.id,
+                    title: 'New Message from Tenant',
+                    message: `${user.email} sent you a message about "${chatProperty.title}"`,
+                    type: 'chat_message',
+                    data: {
+                        property_id: chatProperty.id,
+                        tenant_email: user.email,
+                        message_preview: newMessage.slice(0, 50) + (newMessage.length > 50 ? '...' : '')
+                    }
+                })
+            })
+
+            toast.success('Message sent successfully!')
+        } catch (error) {
+            console.error('Error sending message:', error)
+            toast.error('Failed to send message')
+        } finally {
+            setSendingMessage(false)
+        }
+    }
+
+    // Tour scheduling functionality
+    const handleScheduleTour = (property: any) => {
+        setTourProperty(property)
+        setShowTourModal(true)
+    }
+
+    const scheduleTour = async () => {
+        if (!user || !tourProperty || !tourDetails.preferredDate || !tourDetails.preferredTime) {
+            toast.error('Please fill in all required fields')
+            return
+        }
+
+        setSchedulingTour(true)
+        try {
+            const tourData = {
+                property_id: tourProperty.id,
+                tenant_id: user.id,
+                agent_id: tourProperty.agent_id,
+                preferred_date: tourDetails.preferredDate,
+                preferred_time: tourDetails.preferredTime,
+                message: tourDetails.message,
+                status: 'pending',
+                created_at: new Date().toISOString()
+            }
+
+            const response = await fetch('/api/tours', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(tourData)
+            })
+
+            if (!response.ok) throw new Error('Failed to schedule tour')
+
+            // Send notification to agent
+            await fetch('/api/notifications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    recipient_id: tourProperty.agent_id,
+                    title: 'New Tour Request',
+                    message: `${user.email} requested a tour for "${tourProperty.title}" on ${tourDetails.preferredDate} at ${tourDetails.preferredTime}`,
+                    type: 'tour_request',
+                    data: {
+                        property_id: tourProperty.id,
+                        tenant_email: user.email,
+                        preferred_date: tourDetails.preferredDate,
+                        preferred_time: tourDetails.preferredTime
+                    }
+                })
+            })
+
+            toast.success('Tour request sent successfully! The agent will contact you to confirm.')
+            setShowTourModal(false)
+            setTourDetails({ preferredDate: '', preferredTime: '', message: '' })
+        } catch (error) {
+            console.error('Error scheduling tour:', error)
+            toast.error('Failed to schedule tour')
+        } finally {
+            setSchedulingTour(false)
+        }
+    }
+
+    // Share property functionality
+    const handleShareProperty = (property: any) => {
+        const shareData = {
+            title: property.title,
+            text: `Check out this property: ${property.title} - KSh ${parseInt(property.price).toLocaleString()}/${property.listingType === 'rent' ? 'month' : property.listingType}`,
+            url: `${window.location.origin}/property/${property.id}`
+        }
+
+        if (navigator.share) {
+            navigator.share(shareData).catch(console.error)
+        } else {
+            // Fallback: copy to clipboard
+            navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`)
+                .then(() => toast.success('Property link copied to clipboard!'))
+                .catch(() => toast.error('Failed to copy link'))
+        }
     }
 
     const handleExpressInterest = (property: any) => {
@@ -715,27 +974,28 @@ export default function TenantPortal() {
         }
     }, [user])
 
-    // Enhanced property search that connects to agent listings
+    // Enhanced property search that connects to agent listings with caching
     const loadAgentProperties = async () => {
         setSearchLoading(true)
         try {
             const response = await fetch('/api/properties/agent-listings', {
                 method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'max-age=300' // 5 minutes cache
+                }
             })
 
             if (!response.ok) throw new Error('Failed to load properties')
 
-            const { data } = await response.json()
-            // Only show available properties created by verified agents
-            const availableProperties = data?.filter((property: any) =>
-                property.agent_id &&
-                property.status === 'available' &&
-                property.created_by_agent === true &&
-                property.agent?.verified === true
-            ) || []
-
-            setSearchProperties(availableProperties)
+            const { data, cached } = await response.json()
+            
+            // Properties are already filtered by the API for verified agents
+            setSearchProperties(data || [])
+            
+            if (cached) {
+                console.log('Loaded properties from cache')
+            }
         } catch (error) {
             console.error('Error loading agent properties:', error)
             toast.error('Failed to load properties')
@@ -840,6 +1100,7 @@ export default function TenantPortal() {
                                 {[
                                     { id: 'overview', label: 'Overview', icon: Home },
                                     { id: 'search', label: 'Search Properties', icon: Search },
+                                    { id: 'saved', label: 'Saved Properties', icon: Heart },
                                     { id: 'payments', label: 'Payments', icon: CreditCard },
                                     { id: 'transactions', label: 'Transactions', icon: FileText },
                                     { id: 'notifications', label: 'Notifications', icon: Bell, badge: unreadNotifications },
@@ -1315,6 +1576,31 @@ export default function TenantPortal() {
                                                         {property.amenities?.security && <Shield className="h-4 w-4 text-green-500" />}
                                                     </div>
 
+                                                    {/* Quick Actions */}
+                                                    <div className="grid grid-cols-3 gap-2 mb-3">
+                                                        <button
+                                                            onClick={() => handleShareProperty(property)}
+                                                            className="flex items-center justify-center p-2 border border-nestie-grey-300 rounded-lg hover:bg-nestie-grey-50 text-sm"
+                                                        >
+                                                            <Share className="h-4 w-4 mr-1" />
+                                                            Share
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleScheduleTour(property)}
+                                                            className="flex items-center justify-center p-2 border border-nestie-grey-300 rounded-lg hover:bg-nestie-grey-50 text-sm"
+                                                        >
+                                                            <Calendar className="h-4 w-4 mr-1" />
+                                                            Tour
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleMessageAgent(property)}
+                                                            className="flex items-center justify-center p-2 border border-nestie-grey-300 rounded-lg hover:bg-nestie-grey-50 text-sm"
+                                                        >
+                                                            <Send className="h-4 w-4 mr-1" />
+                                                            Message
+                                                        </button>
+                                                    </div>
+
                                                     {/* Action Buttons */}
                                                     <div className="flex space-x-2">
                                                         <button
@@ -1529,6 +1815,147 @@ export default function TenantPortal() {
                                         )}
                                     </div>
                                 </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'saved' && (
+                            <div className="space-y-6">
+                                <div>
+                                    <h1 className="text-2xl font-bold text-nestie-black mb-2">Saved Properties</h1>
+                                    <p className="text-nestie-grey-600">Properties you've saved for later viewing.</p>
+                                </div>
+
+                                {savedProperties.length === 0 ? (
+                                    <div className="bg-nestie-white rounded-xl border border-nestie-grey-200 p-12 text-center">
+                                        <Heart className="h-12 w-12 text-nestie-grey-400 mx-auto mb-4" />
+                                        <h3 className="text-lg font-medium text-nestie-black mb-2">No saved properties</h3>
+                                        <p className="text-nestie-grey-600 mb-4">Start browsing properties and save your favorites.</p>
+                                        <button
+                                            onClick={() => setActiveTab('search')}
+                                            className="bg-nestie-black text-white px-4 py-2 rounded-lg hover:bg-nestie-grey-800"
+                                        >
+                                            Browse Properties
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {savedProperties.map((property) => (
+                                            <div key={property.id} className="bg-nestie-white rounded-xl border border-nestie-grey-200 overflow-hidden hover:shadow-lg transition-shadow">
+                                                {/* Property Image */}
+                                                <div className="relative h-48 bg-nestie-grey-200">
+                                                    {property.images && property.images.length > 0 ? (
+                                                        <img
+                                                            src={property.images[0]}
+                                                            alt={property.title}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <Building className="h-12 w-12 text-nestie-grey-400" />
+                                                        </div>
+                                                    )}
+                                                    <div className="absolute top-2 right-2">
+                                                        <button
+                                                            onClick={() => handleToggleFavorite(property.id)}
+                                                            className="p-2 rounded-full bg-red-500 text-white"
+                                                        >
+                                                            <Heart className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Property Details */}
+                                                <div className="p-4">
+                                                    <div className="flex items-start justify-between mb-2">
+                                                        <h3 className="font-semibold text-nestie-black text-lg">{property.title}</h3>
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${property.status === 'available' ? 'bg-green-100 text-green-800' :
+                                                            'bg-orange-100 text-orange-800'
+                                                            }`}>
+                                                            {property.status}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center text-nestie-grey-600 mb-2">
+                                                        <MapPin className="h-4 w-4 mr-1" />
+                                                        <span className="text-sm">{property.location?.address}</span>
+                                                    </div>
+
+                                                    <div className="flex items-center space-x-4 text-sm text-nestie-grey-600 mb-3">
+                                                        <div className="flex items-center">
+                                                            <Bed className="h-4 w-4 mr-1" />
+                                                            <span>{property.specifications?.bedrooms} bed</span>
+                                                        </div>
+                                                        <div className="flex items-center">
+                                                            <Bath className="h-4 w-4 mr-1" />
+                                                            <span>{property.specifications?.bathrooms} bath</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div>
+                                                            <span className="text-2xl font-bold text-nestie-black">
+                                                                KSh {parseInt(property.price).toLocaleString()}
+                                                            </span>
+                                                            <span className="text-nestie-grey-500 text-sm">
+                                                                /{property.listingType === 'rent' ? 'month' : property.listingType}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Quick Actions */}
+                                                    <div className="grid grid-cols-3 gap-2 mb-3">
+                                                        <button
+                                                            onClick={() => handleShareProperty(property)}
+                                                            className="flex items-center justify-center p-2 border border-nestie-grey-300 rounded-lg hover:bg-nestie-grey-50 text-sm"
+                                                        >
+                                                            <Share className="h-4 w-4 mr-1" />
+                                                            Share
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleScheduleTour(property)}
+                                                            className="flex items-center justify-center p-2 border border-nestie-grey-300 rounded-lg hover:bg-nestie-grey-50 text-sm"
+                                                        >
+                                                            <Calendar className="h-4 w-4 mr-1" />
+                                                            Tour
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleMessageAgent(property)}
+                                                            className="flex items-center justify-center p-2 border border-nestie-grey-300 rounded-lg hover:bg-nestie-grey-50 text-sm"
+                                                        >
+                                                            <Send className="h-4 w-4 mr-1" />
+                                                            Message
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Action Buttons */}
+                                                    <div className="flex space-x-2">
+                                                        <button
+                                                            onClick={() => handlePropertyView(property)}
+                                                            className="flex-1 bg-nestie-grey-100 text-nestie-black px-4 py-2 rounded-lg hover:bg-nestie-grey-200 transition-colors text-sm"
+                                                        >
+                                                            View Details
+                                                        </button>
+                                                        {property.status === 'available' ? (
+                                                            <button
+                                                                onClick={() => handleBookNow(property)}
+                                                                className="flex-1 bg-nestie-black text-white px-4 py-2 rounded-lg hover:bg-nestie-grey-800 transition-colors text-sm font-medium"
+                                                            >
+                                                                Book Now
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleExpressInterest(property)}
+                                                                className="flex-1 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors text-sm"
+                                                            >
+                                                                Express Interest
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -2546,6 +2973,197 @@ export default function TenantPortal() {
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Chat Modal */}
+            {showChatModal && selectedAgent && chatProperty && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl w-full max-w-2xl h-[600px] flex flex-col">
+                        <div className="border-b border-nestie-grey-200 p-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                    <div className="w-10 h-10 bg-nestie-grey-300 rounded-full flex items-center justify-center">
+                                        <User className="h-5 w-5 text-nestie-grey-600" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-nestie-black">
+                                            {selectedAgent.name || selectedAgent.email}
+                                        </h2>
+                                        <p className="text-sm text-nestie-grey-600">
+                                            Agent for {chatProperty.title}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowChatModal(false)}>
+                                    <X className="h-6 w-6 text-nestie-grey-500" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Messages Area */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {chatMessages.length === 0 ? (
+                                <div className="text-center text-nestie-grey-500 py-8">
+                                    <Mail className="h-12 w-12 mx-auto mb-4 text-nestie-grey-400" />
+                                    <p>No messages yet. Start the conversation!</p>
+                                </div>
+                            ) : (
+                                chatMessages.map((message, index) => (
+                                    <div
+                                        key={index}
+                                        className={`flex ${message.sender_type === 'tenant' ? 'justify-end' : 'justify-start'}`}
+                                    >
+                                        <div
+                                            className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${message.sender_type === 'tenant'
+                                                    ? 'bg-nestie-black text-white'
+                                                    : 'bg-nestie-grey-100 text-nestie-black'
+                                                }`}
+                                        >
+                                            <p className="text-sm">{message.message}</p>
+                                            <p className={`text-xs mt-1 ${message.sender_type === 'tenant' ? 'text-nestie-grey-300' : 'text-nestie-grey-500'
+                                                }`}>
+                                                {new Date(message.created_at).toLocaleTimeString()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Message Input */}
+                        <div className="border-t border-nestie-grey-200 p-4">
+                            <div className="flex space-x-2">
+                                <input
+                                    type="text"
+                                    value={newMessage}
+                                    onChange={(e) => setNewMessage(e.target.value)}
+                                    placeholder="Type your message..."
+                                    className="flex-1 px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                                />
+                                <button
+                                    onClick={sendMessage}
+                                    disabled={!newMessage.trim() || sendingMessage}
+                                    className="bg-nestie-black text-white px-4 py-2 rounded-lg hover:bg-nestie-grey-800 disabled:opacity-50 flex items-center"
+                                >
+                                    {sendingMessage ? (
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                    ) : (
+                                        <Send className="h-4 w-4" />
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Tour Scheduling Modal */}
+            {showTourModal && tourProperty && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl w-full max-w-md mx-4">
+                        <div className="p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-xl font-bold text-nestie-black">Schedule Tour</h2>
+                                <button onClick={() => setShowTourModal(false)}>
+                                    <X className="h-5 w-5 text-nestie-grey-500" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <h3 className="font-semibold text-blue-900 mb-2">{tourProperty.title}</h3>
+                                    <p className="text-blue-700 text-sm">{tourProperty.location?.address}</p>
+                                    <p className="text-blue-800 font-medium mt-2">
+                                        KSh {parseInt(tourProperty.price).toLocaleString()}/{tourProperty.listingType === 'rent' ? 'month' : tourProperty.listingType}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                                            Preferred Date *
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={tourDetails.preferredDate}
+                                            onChange={(e) => setTourDetails({ ...tourDetails, preferredDate: e.target.value })}
+                                            min={new Date().toISOString().split('T')[0]}
+                                            className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                                            Preferred Time *
+                                        </label>
+                                        <select
+                                            value={tourDetails.preferredTime}
+                                            onChange={(e) => setTourDetails({ ...tourDetails, preferredTime: e.target.value })}
+                                            className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                        >
+                                            <option value="">Select time</option>
+                                            <option value="09:00">9:00 AM</option>
+                                            <option value="10:00">10:00 AM</option>
+                                            <option value="11:00">11:00 AM</option>
+                                            <option value="12:00">12:00 PM</option>
+                                            <option value="13:00">1:00 PM</option>
+                                            <option value="14:00">2:00 PM</option>
+                                            <option value="15:00">3:00 PM</option>
+                                            <option value="16:00">4:00 PM</option>
+                                            <option value="17:00">5:00 PM</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
+                                        Additional Message (Optional)
+                                    </label>
+                                    <textarea
+                                        value={tourDetails.message}
+                                        onChange={(e) => setTourDetails({ ...tourDetails, message: e.target.value })}
+                                        placeholder="Any specific requirements or questions..."
+                                        rows={3}
+                                        className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                    />
+                                </div>
+
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <h4 className="font-medium text-green-800 mb-2">What happens next?</h4>
+                                    <ul className="text-green-700 text-sm space-y-1">
+                                        <li>• Your tour request will be sent to the agent</li>
+                                        <li>• The agent will confirm or suggest alternative times</li>
+                                        <li>• You'll receive a notification with the confirmation</li>
+                                        <li>• Meet the agent at the property on the scheduled time</li>
+                                    </ul>
+                                </div>
+
+                                <div className="flex space-x-3 pt-4">
+                                    <button
+                                        onClick={() => setShowTourModal(false)}
+                                        className="flex-1 px-4 py-2 border border-nestie-grey-300 text-nestie-grey-700 rounded-lg hover:bg-nestie-grey-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={scheduleTour}
+                                        disabled={!tourDetails.preferredDate || !tourDetails.preferredTime || schedulingTour}
+                                        className="flex-1 px-4 py-2 bg-nestie-black text-white rounded-lg hover:bg-nestie-grey-800 disabled:opacity-50 flex items-center justify-center"
+                                    >
+                                        {schedulingTour ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                                Scheduling...
+                                            </>
+                                        ) : (
+                                            'Schedule Tour'
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
