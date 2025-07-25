@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { motion } from 'framer-motion'
 import { Home } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
+import { useSessionState } from '@/lib/sessionStateManager'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -21,6 +22,7 @@ export function ProtectedRoute({
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const { shouldPreventRedirect } = useSessionState('protected-route')
 
   useEffect(() => {
     // Get initial session
@@ -44,7 +46,7 @@ export function ProtectedRoute({
   }, [])
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && !shouldPreventRedirect) {
       if (!user) {
         router.push(redirectTo)
         return
@@ -60,7 +62,7 @@ export function ProtectedRoute({
         return
       }
     }
-  }, [user, loading, requiredRole, redirectTo, router])
+  }, [user, loading, requiredRole, redirectTo, router, shouldPreventRedirect])
 
   if (loading) {
     return (

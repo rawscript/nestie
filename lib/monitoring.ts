@@ -1,5 +1,6 @@
 import { ErrorHandler, ErrorType } from './errorHandler'
 import { Database } from './database'
+import React from 'react'
 
 // Performance monitoring
 export interface PerformanceMetric {
@@ -29,14 +30,14 @@ export class MonitoringService {
 
   // Performance monitoring
   static startTimer(name: string): () => void {
-    if (!this.isEnabled) return () => {}
+    if (!this.isEnabled) return () => { }
 
     const startTime = performance.now()
-    
+
     return () => {
       const endTime = performance.now()
       const duration = endTime - startTime
-      
+
       this.recordMetric({
         name,
         value: duration,
@@ -96,29 +97,29 @@ export class MonitoringService {
     queryFn: () => Promise<T>
   ): Promise<T> {
     const stopTimer = this.startTimer(`db_query_${queryName}`)
-    
+
     try {
       const result = await queryFn()
       stopTimer()
-      
+
       this.recordMetric({
         name: `db_query_success_${queryName}`,
         value: 1,
         unit: 'count',
         context: 'database'
       })
-      
+
       return result
     } catch (error) {
       stopTimer()
-      
+
       this.recordMetric({
         name: `db_query_error_${queryName}`,
         value: 1,
         unit: 'count',
         context: 'database'
       })
-      
+
       await ErrorHandler.handleDatabaseError(error, `db_query_${queryName}`)
       throw error
     }
@@ -131,29 +132,29 @@ export class MonitoringService {
     apiFn: () => Promise<T>
   ): Promise<T> {
     const stopTimer = this.startTimer(`api_${method}_${endpoint}`)
-    
+
     try {
       const result = await apiFn()
       stopTimer()
-      
+
       this.recordMetric({
         name: `api_success_${method}_${endpoint}`,
         value: 1,
         unit: 'count',
         context: 'api'
       })
-      
+
       return result
     } catch (error) {
       stopTimer()
-      
+
       this.recordMetric({
         name: `api_error_${method}_${endpoint}`,
         value: 1,
         unit: 'count',
         context: 'api'
       })
-      
+
       await ErrorHandler.handleNetworkError(error, `api_${method}_${endpoint}`)
       throw error
     }
@@ -286,7 +287,7 @@ export class MonitoringService {
     // Form submission tracking
     document.addEventListener('submit', (event) => {
       const form = event.target as HTMLFormElement
-      
+
       this.recordUserAction({
         action: 'form_submit',
         page: window.location.pathname,
@@ -328,8 +329,8 @@ export class MonitoringService {
     ).length
 
     const errorCount = this.metrics.filter(
-      metric => 
-        metric.name.includes('error') && 
+      metric =>
+        metric.name.includes('error') &&
         new Date(metric.timestamp).getTime() > windowStart
     ).length
 
@@ -350,15 +351,15 @@ export class MonitoringService {
     const memoryMetrics = this.metrics.filter(m => m.name === 'memory_used')
 
     return {
-      averagePageLoadTime: pageLoadMetrics.length > 0 
-        ? pageLoadMetrics.reduce((sum, m) => sum + m.value, 0) / pageLoadMetrics.length 
+      averagePageLoadTime: pageLoadMetrics.length > 0
+        ? pageLoadMetrics.reduce((sum, m) => sum + m.value, 0) / pageLoadMetrics.length
         : 0,
       averageApiResponseTime: apiMetrics.length > 0
         ? apiMetrics.reduce((sum, m) => sum + m.value, 0) / apiMetrics.length
         : 0,
       errorRate: this.getErrorRate(),
-      memoryUsage: memoryMetrics.length > 0 
-        ? memoryMetrics[memoryMetrics.length - 1].value 
+      memoryUsage: memoryMetrics.length > 0
+        ? memoryMetrics[memoryMetrics.length - 1].value
         : 0,
       totalMetrics: this.metrics.length,
       totalActions: this.userActions.length
@@ -456,10 +457,10 @@ export function withPerformanceMonitoring<P extends object>(
   WrappedComponent: React.ComponentType<P>,
   componentName: string
 ) {
-  return function MonitoredComponent(props: P) {
+  const MonitoredComponent = (props: P) => {
     React.useEffect(() => {
       const stopTimer = MonitoringService.startTimer(`component_render_${componentName}`)
-      
+
       MonitoringService.recordUserAction({
         action: 'component_mount',
         page: window.location.pathname,
@@ -476,8 +477,11 @@ export function withPerformanceMonitoring<P extends object>(
       }
     }, [])
 
-    return <WrappedComponent {...props} />
+    return React.createElement(WrappedComponent, props)
   }
+
+  MonitoredComponent.displayName = `withPerformanceMonitoring(${componentName})`
+  return MonitoredComponent
 }
 
 // Initialize monitoring when module loads

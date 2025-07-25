@@ -40,6 +40,8 @@ import { useAuth } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 import { TransactionService, Transaction, Notification } from '@/lib/transactionService'
 import toast from 'react-hot-toast'
+import { useSessionState } from '@/lib/sessionStateManager'
+import { TabStateIndicator } from '@/components/TabStateIndicator'
 
 export default function AgentDashboard() {
   const { user, signOut } = useAuth()
@@ -50,6 +52,9 @@ export default function AgentDashboard() {
   const [propertiesWithTenancies, setPropertiesWithTenancies] = useState<any[]>([])
   const [allProperties, setAllProperties] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Use state management hooks
+  const { isTabActive, restoreState, saveCurrentState } = useSessionState('agent-dashboard')
 
   // Property management state
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false)
@@ -114,7 +119,21 @@ export default function AgentDashboard() {
 
     loadAgentData()
     setupRealtimeSubscriptions()
-  }, [user, router])
+    
+    // Restore state after data loads
+    const timer = setTimeout(() => {
+      restoreState()
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [user, router, restoreState])
+
+  // Save state when important data changes
+  useEffect(() => {
+    if (activeTab || searchQuery || propertyFilter) {
+      saveCurrentState()
+    }
+  }, [activeTab, searchQuery, propertyFilter, saveCurrentState])
 
   const loadAgentData = async () => {
     if (!user) return
@@ -444,6 +463,7 @@ export default function AgentDashboard() {
 
   return (
     <div className="min-h-screen bg-nestie-grey-50">
+      <TabStateIndicator showIndicator={process.env.NODE_ENV === 'development'} />
       {/* Header */}
       <header className="bg-nestie-white border-b border-nestie-grey-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -691,6 +711,7 @@ export default function AgentDashboard() {
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-nestie-grey-400" />
                       <input
                         type="text"
+                        name="searchQuery"
                         placeholder="Search properties..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -698,6 +719,7 @@ export default function AgentDashboard() {
                       />
                     </div>
                     <select
+                      name="propertyFilter"
                       value={propertyFilter}
                       onChange={(e) => setPropertyFilter(e.target.value)}
                       className="px-4 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"

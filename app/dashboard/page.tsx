@@ -13,6 +13,8 @@ import { Navigation } from '@/components/Navigation'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { sampleProperties, type Property } from '@/lib/sampleData'
 import { useRouter } from 'next/navigation'
+import { useSessionState } from '@/lib/sessionStateManager'
+import { TabStateIndicator } from '@/components/TabStateIndicator'
 
 export default function UserDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -21,6 +23,21 @@ export default function UserDashboard() {
   const [loading, setLoading] = useState(false)
   const [showMap, setShowMap] = useState(false)
   const router = useRouter()
+  
+  // Use session state management to preserve search state
+  const { isTabActive, restoreState, saveCurrentState } = useSessionState('dashboard-search')
+
+  // Restore search state when component mounts
+  useEffect(() => {
+    restoreState()
+  }, [restoreState])
+
+  // Save state when search query or location changes
+  useEffect(() => {
+    if (searchQuery || location) {
+      saveCurrentState()
+    }
+  }, [searchQuery, location, saveCurrentState])
 
 
 
@@ -54,6 +71,7 @@ export default function UserDashboard() {
   return (
     <ProtectedRoute requiredRole="tenant">
       <div className="min-h-screen bg-nestie-grey-50">
+      <TabStateIndicator showIndicator={process.env.NODE_ENV === 'development'} />
       <Navigation userRole="tenant" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -72,11 +90,13 @@ export default function UserDashboard() {
             <CardContent>
               <div className="grid md:grid-cols-3 gap-4">
                 <Input
+                  name="searchQuery"
                   placeholder="What are you looking for?"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
                 <Input
+                  name="location"
                   placeholder="Location"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
