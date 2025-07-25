@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { supabase } from '@/lib/supabase'
+import { Database } from '@/lib/database'
+import { ErrorHandler, ErrorType } from '@/lib/errorHandler'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-10-16'
@@ -8,12 +9,30 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(request: NextRequest) {
   try {
-    const { amount, currency = 'kes', card, description } = await request.json()
+    const { amount, currency = 'usd', card, description, userId, propertyId } = await request.json()
 
     // Validate input
     if (!amount || !card) {
+      await ErrorHandler.logError(
+        'Missing required fields for Stripe payment',
+        ErrorType.VALIDATION,
+        'stripe-payment'
+      )
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    // Validate card details
+    if (!card.number || !card.expiry || !card.cvv || !card.name) {
+      await ErrorHandler.logError(
+        'Incomplete card details',
+        ErrorType.VALIDATION,
+        'stripe-payment'
+      )
+      return NextResponse.json(
+        { error: 'Incomplete card details' },
         { status: 400 }
       )
     }
@@ -39,40 +58,73 @@ export async function POST(request: NextRequest) {
       payment_method: paymentMethod.id,
       description: description || 'Nestie payment',
       confirm: true,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payments/success`
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payments/success`,
+      metadata: {
+        userId: userId || '',
+        propertyId: propertyId || '',
+        platform: 'nestie'
+      }
     })
 
-    // Store payment record
-    const { data: payment, error: paymentError } = await supabase
-      .from('payments')
-      .insert({
-        transaction_id: paymentIntent.id,
+    // Create transaction record
+    if (userId) {
+      const transactionResult = await Database.createTransaction({
+        user_id: userId,
+        transaction_type: 'rent_payment',
         amount: amount,
-        method: 'stripe',
         status: paymentIntent.status === 'succeeded' ? 'completed' : 'pending',
-        payment_data: {
-          payment_intent_id: paymentIntent.id,
-          client_secret: paymentIntent.client_secret
-        }
+        description: description || 'Stripe payment',
+        payment_method: 'stripe',
+        payment_reference: paymentIntent.id
       })
-      .select()
-      .single()
 
-    if (paymentError) throw paymentError
+      if (!transactionResult.success) {
+        await ErrorHandler.logError(
+          `Failed to create transaction record: ${transactionResult.error}`,
+          ErrorType.DATABASE,
+          'stripe-payment'
+        )
+      }
+    }
+
+    // Log successful payment
+    await ErrorHandler.logError(
+      `Stripe payment successful: ${paymentIntent.id}`,
+      ErrorType.UNKNOWN,
+      'stripe-payment-success',
+      { amount, currency, status: paymentIntent.status }
+    )
 
     return NextResponse.json({
       success: true,
-      payment_id: payment.id,
       reference: paymentIntent.id,
       status: paymentIntent.status,
-      client_secret: paymentIntent.client_secret
+      client_secret: paymentIntent.client_secret,
+      amount: amount,
+      currency: currency
     })
 
   } catch (error: any) {
-    console.error('Stripe payment error:', error)
+    await ErrorHandler.handlePaymentError(error, 'stripe-payment')
+    
+    // Handle specific Stripe errors
+    let errorMessage = 'Payment processing failed'
+    let statusCode = 500
+
+    if (error.type === 'StripeCardError') {
+      errorMessage = error.message || 'Your card was declined'
+      statusCode = 400
+    } else if (error.type === 'StripeInvalidRequestError') {
+      errorMessage = 'Invalid payment request'
+      statusCode = 400
+    } else if (error.type === 'StripeAPIError') {
+      errorMessage = 'Payment service temporarily unavailable'
+      statusCode = 503
+    }
+
     return NextResponse.json(
-      { error: error.message || 'Payment processing failed' },
-      { status: 500 }
+      { error: errorMessage, type: error.type },
+      { status: statusCode }
     )
   }
 }

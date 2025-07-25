@@ -3,6 +3,8 @@ import type { Metadata } from 'next'
 import { Inter, Playfair_Display } from 'next/font/google'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '@/lib/auth'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { GlobalLoadingProvider } from '@/lib/loadingStates'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -46,9 +48,13 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} ${playfair.variable} min-h-screen bg-nestie-white antialiased`}>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <ErrorBoundary>
+          <GlobalLoadingProvider>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </GlobalLoadingProvider>
+        </ErrorBoundary>
         <Toaster
           position="top-right"
           toastOptions={{
