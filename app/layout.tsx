@@ -42,6 +42,7 @@ export default function RootLayout({
               gtag('config', 'G-MMTKWZ1ZMG');
             `,
           }}
+
         />
       </head>
       <body className={`${inter.variable} ${playfair.variable} min-h-screen bg-nestie-white antialiased`}>

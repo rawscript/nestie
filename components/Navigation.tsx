@@ -15,7 +15,7 @@ import {
   LogOut
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { signOut } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth'
 import toast from 'react-hot-toast'
 
 interface NavigationProps {
@@ -27,6 +27,7 @@ export function Navigation({ userRole, showAuthButtons = false }: NavigationProp
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
+  const { signOut } = useAuth()
 
   const handleLogout = async () => {
     try {

@@ -193,10 +193,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
-    setUser(null)
-    setProfile(null)
+    try {
+      // Clear local state first to provide immediate feedback
+      setLoading(true)
+      
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut()
+      
+      // Clear local state regardless of error (in case of network issues)
+      setUser(null)
+      setProfile(null)
+      
+      // Clear any cached data
+      localStorage.removeItem('supabase.auth.token')
+      sessionStorage.clear()
+      
+      if (error) {
+        console.error('Sign out error:', error)
+        // Don't throw error if it's just a network issue - user is still logged out locally
+        if (error.message !== 'Network request failed') {
+          throw error
+        }
+      }
+    } catch (error) {
+      console.error('Error during sign out:', error)
+      // Still clear local state even if remote sign out fails
+      setUser(null)
+      setProfile(null)
+      throw error
+    } finally {
+      setLoading(false)
+    }
   }
 
   const updateProfile = async (updates: Partial<Profile>) => {
