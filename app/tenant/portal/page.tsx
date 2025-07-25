@@ -512,7 +512,7 @@ export default function TenantPortal() {
             toast.error('Please login to book a property')
             return
         }
-        
+
         setBookingProperty(property)
         setShowBookingModal(true)
     }
@@ -522,10 +522,10 @@ export default function TenantPortal() {
         toast.success('Booking completed successfully!')
         setShowBookingModal(false)
         setBookingProperty(null)
-        
+
         // Refresh user data to show new booking
         loadUserData()
-        
+
         // Optionally redirect to calendar
         if (bookingData.booking_type !== 'viewing') {
             toast.success('Payment processed! Check your calendar for the appointment.')
@@ -996,7 +996,7 @@ export default function TenantPortal() {
         try {
             const response = await fetch('/api/properties/agent-listings', {
                 method: 'GET',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Cache-Control': 'max-age=300' // 5 minutes cache
                 }
@@ -1005,10 +1005,10 @@ export default function TenantPortal() {
             if (!response.ok) throw new Error('Failed to load properties')
 
             const { data, cached } = await response.json()
-            
+
             // Properties are already filtered by the API for verified agents
             setSearchProperties(data || [])
-            
+
             if (cached) {
                 console.log('Loaded properties from cache')
             }
@@ -2636,528 +2636,210 @@ export default function TenantPortal() {
             {showBookingModal && bookingProperty && (
                 <CalendarBooking
                     property={bookingProperty}
-                    agent={bookingProperty.agent || { 
-                        id: bookingProperty.agent_id, 
-                        full_name: 'Property Agent', 
-                        email: 'agent@example.com' 
+                    agent={bookingProperty.agent || {
+                        id: bookingProperty.agent_id,
+                        full_name: 'Property Agent',
+                        email: 'agent@example.com'
                     }}
                     onClose={() => setShowBookingModal(false)}
                     onBookingComplete={handleBookingComplete}
                 />
             )}
 
-                        <div className="p-6">
-                            {/* Property Summary */}
-                            <div className="bg-nestie-grey-50 rounded-lg p-4 mb-6">
-                                <div className="flex items-start space-x-4">
-                                    <div className="w-20 h-16 bg-nestie-grey-200 rounded-lg flex items-center justify-center">
-                                        {bookingProperty.images && bookingProperty.images.length > 0 ? (
-                                            <img src={bookingProperty.images[0]} alt={bookingProperty.title} className="w-full h-full object-cover rounded-lg" />
-                                        ) : (
-                                            <Building className="h-8 w-8 text-nestie-grey-400" />
-                                        )}
+            {/* Chat Modal */}
+            {
+                showChatModal && selectedAgent && chatProperty && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl w-full max-w-2xl h-[600px] flex flex-col">
+                            <div className="border-b border-nestie-grey-200 p-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-3">
+                                        <div className="w-10 h-10 bg-nestie-grey-300 rounded-full flex items-center justify-center">
+                                            <User className="h-5 w-5 text-nestie-grey-600" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-lg font-semibold text-nestie-black">
+                                                {selectedAgent.name || selectedAgent.email}
+                                            </h2>
+                                            <p className="text-sm text-nestie-grey-600">
+                                                Agent for {chatProperty.title}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="flex-1">
-                                        <h3 className="font-semibold text-nestie-black">{bookingProperty.title}</h3>
-                                        <p className="text-sm text-nestie-grey-600">{bookingProperty.location?.address}</p>
-                                        <p className="text-lg font-bold text-nestie-black mt-1">
-                                            KSh {parseInt(bookingProperty.price).toLocaleString()}/month
-                                        </p>
-                                    </div>
+                                    <button onClick={() => setShowChatModal(false)}>
+                                        <X className="h-6 w-6 text-nestie-grey-500" />
+                                    </button>
                                 </div>
                             </div>
 
-                            {/* Step 1: Booking Details */}
-                            {bookingStep === 'details' && (
-                                <div className="space-y-4">
-                                    <h3 className="text-lg font-semibold text-nestie-black">Booking Details</h3>
+                            {/* Messages Area */}
+                            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                                {chatMessages.length === 0 ? (
+                                    <div className="text-center text-nestie-grey-500 py-8">
+                                        <Mail className="h-12 w-12 mx-auto mb-4 text-nestie-grey-400" />
+                                        <p>No messages yet. Start the conversation!</p>
+                                    </div>
+                                ) : (
+                                    chatMessages.map((message, index) => (
+                                        <div
+                                            key={index}
+                                            className={`flex ${message.sender_type === 'tenant' ? 'justify-end' : 'justify-start'}`}
+                                        >
+                                            <div
+                                                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${message.sender_type === 'tenant'
+                                                    ? 'bg-nestie-black text-white'
+                                                    : 'bg-nestie-grey-100 text-nestie-black'
+                                                    }`}
+                                            >
+                                                <p className="text-sm">{message.message}</p>
+                                                <p className={`text-xs mt-1 ${message.sender_type === 'tenant' ? 'text-nestie-grey-300' : 'text-nestie-grey-500'
+                                                    }`}>
+                                                    {new Date(message.created_at).toLocaleTimeString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
 
-                                    <div className="grid md:grid-cols-2 gap-4">
+                            {/* Message Input */}
+                            <div className="border-t border-nestie-grey-200 p-4">
+                                <div className="flex space-x-2">
+                                    <input
+                                        type="text"
+                                        value={newMessage}
+                                        onChange={(e) => setNewMessage(e.target.value)}
+                                        placeholder="Type your message..."
+                                        className="flex-1 px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
+                                        onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                                    />
+                                    <button
+                                        onClick={sendMessage}
+                                        disabled={!newMessage.trim() || sendingMessage}
+                                        className="bg-nestie-black text-white px-4 py-2 rounded-lg hover:bg-nestie-grey-800 disabled:opacity-50 flex items-center"
+                                    >
+                                        {sendingMessage ? (
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                        ) : (
+                                            <Send className="h-4 w-4" />
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Tour Scheduling Modal */}
+            {
+                showTourModal && tourProperty && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl w-full max-w-md mx-4">
+                            <div className="p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-xl font-bold text-nestie-black">Schedule Tour</h2>
+                                    <button onClick={() => setShowTourModal(false)}>
+                                        <X className="h-5 w-5 text-nestie-grey-500" />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                        <h3 className="font-semibold text-blue-900 mb-2">{tourProperty.title}</h3>
+                                        <p className="text-blue-700 text-sm">{tourProperty.location?.address}</p>
+                                        <p className="text-blue-800 font-medium mt-2">
+                                            KSh {parseInt(tourProperty.price).toLocaleString()}/{tourProperty.listingType === 'rent' ? 'month' : tourProperty.listingType}
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
-                                                Preferred Move-in Date
+                                                Preferred Date *
                                             </label>
                                             <input
                                                 type="date"
-                                                value={bookingDetails.moveInDate}
-                                                onChange={(e) => setBookingDetails({ ...bookingDetails, moveInDate: e.target.value })}
+                                                value={tourDetails.preferredDate}
+                                                onChange={(e) => setTourDetails({ ...tourDetails, preferredDate: e.target.value })}
                                                 min={new Date().toISOString().split('T')[0]}
                                                 className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
                                             />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
-                                                Lease Period
+                                                Preferred Time *
                                             </label>
                                             <select
-                                                value={bookingDetails.leasePeriod}
-                                                onChange={(e) => setBookingDetails({ ...bookingDetails, leasePeriod: e.target.value })}
+                                                value={tourDetails.preferredTime}
+                                                onChange={(e) => setTourDetails({ ...tourDetails, preferredTime: e.target.value })}
                                                 className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
                                             >
-                                                <option value="6">6 months</option>
-                                                <option value="12">12 months</option>
-                                                <option value="24">24 months</option>
-                                                <option value="36">36 months</option>
+                                                <option value="">Select time</option>
+                                                <option value="09:00">9:00 AM</option>
+                                                <option value="10:00">10:00 AM</option>
+                                                <option value="11:00">11:00 AM</option>
+                                                <option value="12:00">12:00 PM</option>
+                                                <option value="13:00">1:00 PM</option>
+                                                <option value="14:00">2:00 PM</option>
+                                                <option value="15:00">3:00 PM</option>
+                                                <option value="16:00">4:00 PM</option>
+                                                <option value="17:00">5:00 PM</option>
                                             </select>
                                         </div>
                                     </div>
 
                                     <div>
                                         <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
-                                            Special Requests (Optional)
+                                            Additional Message (Optional)
                                         </label>
                                         <textarea
-                                            value={bookingDetails.specialRequests}
-                                            onChange={(e) => setBookingDetails({ ...bookingDetails, specialRequests: e.target.value })}
-                                            placeholder="Any special requests or requirements..."
+                                            value={tourDetails.message}
+                                            onChange={(e) => setTourDetails({ ...tourDetails, message: e.target.value })}
+                                            placeholder="Any specific requirements or questions..."
                                             rows={3}
                                             className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
                                         />
                                     </div>
 
-                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                        <h4 className="font-medium text-blue-800 mb-2">Deposit Information</h4>
-                                        <p className="text-blue-700 text-sm mb-2">
-                                            Security Deposit: KSh {parseInt(depositPayment.amount).toLocaleString()}
-                                        </p>
-                                        <p className="text-blue-600 text-xs">
-                                            This deposit will be processed in the next step and is required to secure your booking.
-                                        </p>
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <h4 className="font-medium text-green-800 mb-2">What happens next?</h4>
+                                        <ul className="text-green-700 text-sm space-y-1">
+                                            <li>• Your tour request will be sent to the agent</li>
+                                            <li>• The agent will confirm or suggest alternative times</li>
+                                            <li>• You'll receive a notification with the confirmation</li>
+                                            <li>• Meet the agent at the property on the scheduled time</li>
+                                        </ul>
                                     </div>
 
                                     <div className="flex space-x-3 pt-4">
                                         <button
-                                            onClick={() => setShowBookingModal(false)}
+                                            onClick={() => setShowTourModal(false)}
                                             className="flex-1 px-4 py-2 border border-nestie-grey-300 text-nestie-grey-700 rounded-lg hover:bg-nestie-grey-50"
                                         >
                                             Cancel
                                         </button>
                                         <button
-                                            onClick={() => setBookingStep('payment')}
-                                            disabled={!bookingDetails.moveInDate}
-                                            className="flex-1 px-4 py-2 bg-nestie-black text-white rounded-lg hover:bg-nestie-grey-800 disabled:opacity-50"
-                                        >
-                                            Continue to Payment
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Step 2: Payment */}
-                            {bookingStep === 'payment' && (
-                                <div className="space-y-4">
-                                    <h3 className="text-lg font-semibold text-nestie-black">Deposit Payment</h3>
-
-                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                        <h4 className="font-medium text-green-800 mb-2">Payment Amount</h4>
-                                        <p className="text-2xl font-bold text-green-900">
-                                            KSh {parseInt(depositPayment.amount).toLocaleString()}
-                                        </p>
-                                        <p className="text-green-700 text-sm">Security deposit for {bookingProperty.title}</p>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
-                                            Payment Method
-                                        </label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <button
-                                                onClick={() => setDepositPayment({ ...depositPayment, paymentMethod: 'tinympesa' })}
-                                                className={`flex items-center justify-center p-3 border-2 rounded-lg transition-colors ${depositPayment.paymentMethod === 'tinympesa'
-                                                    ? 'border-green-500 bg-green-50 text-green-700'
-                                                    : 'border-nestie-grey-300 hover:border-nestie-grey-400'
-                                                    }`}
-                                            >
-                                                <Smartphone className="h-5 w-5 mr-2" />
-                                                <span className="font-medium">M-Pesa</span>
-                                            </button>
-                                            <button
-                                                onClick={() => setDepositPayment({ ...depositPayment, paymentMethod: 'stripe' })}
-                                                className={`flex items-center justify-center p-3 border-2 rounded-lg transition-colors ${depositPayment.paymentMethod === 'stripe'
-                                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                                    : 'border-nestie-grey-300 hover:border-nestie-grey-400'
-                                                    }`}
-                                            >
-                                                <CreditCard className="h-5 w-5 mr-2" />
-                                                <span className="font-medium">Card</span>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* M-Pesa Payment Form */}
-                                    {depositPayment.paymentMethod === 'tinympesa' && (
-                                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                            <div className="flex items-center mb-3">
-                                                <Smartphone className="h-5 w-5 text-green-600 mr-2" />
-                                                <h4 className="font-medium text-green-800">M-Pesa Payment</h4>
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-green-700 mb-2">
-                                                    M-Pesa Phone Number
-                                                </label>
-                                                <input
-                                                    type="tel"
-                                                    value={depositPayment.mpesaPhone}
-                                                    onChange={(e) => setDepositPayment({ ...depositPayment, mpesaPhone: e.target.value })}
-                                                    placeholder="254712345678"
-                                                    className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                                                />
-                                                <p className="text-xs text-green-600 mt-1">
-                                                    You will receive an M-Pesa prompt on this number
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Stripe Payment Form */}
-                                    {depositPayment.paymentMethod === 'stripe' && (
-                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                            <div className="flex items-center mb-3">
-                                                <CreditCard className="h-5 w-5 text-blue-600 mr-2" />
-                                                <h4 className="font-medium text-blue-800">Credit/Debit Card</h4>
-                                            </div>
-                                            <div className="space-y-3">
-                                                <div>
-                                                    <label className="block text-sm font-medium text-blue-700 mb-1">
-                                                        Cardholder Name
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={depositPayment.cardDetails.name}
-                                                        onChange={(e) => setDepositPayment({
-                                                            ...depositPayment,
-                                                            cardDetails: { ...depositPayment.cardDetails, name: e.target.value }
-                                                        })}
-                                                        placeholder="John Doe"
-                                                        className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-medium text-blue-700 mb-1">
-                                                        Card Number
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={depositPayment.cardDetails.number}
-                                                        onChange={(e) => setDepositPayment({
-                                                            ...depositPayment,
-                                                            cardDetails: { ...depositPayment.cardDetails, number: e.target.value }
-                                                        })}
-                                                        placeholder="1234 5678 9012 3456"
-                                                        className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                    />
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-blue-700 mb-1">
-                                                            Expiry Date
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            value={depositPayment.cardDetails.expiry}
-                                                            onChange={(e) => setDepositPayment({
-                                                                ...depositPayment,
-                                                                cardDetails: { ...depositPayment.cardDetails, expiry: e.target.value }
-                                                            })}
-                                                            placeholder="MM/YY"
-                                                            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-blue-700 mb-1">
-                                                            CVV
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            value={depositPayment.cardDetails.cvv}
-                                                            onChange={(e) => setDepositPayment({
-                                                                ...depositPayment,
-                                                                cardDetails: { ...depositPayment.cardDetails, cvv: e.target.value }
-                                                            })}
-                                                            placeholder="123"
-                                                            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="flex space-x-3 pt-4">
-                                        <button
-                                            onClick={() => setBookingStep('details')}
-                                            className="flex-1 px-4 py-2 border border-nestie-grey-300 text-nestie-grey-700 rounded-lg hover:bg-nestie-grey-50"
-                                        >
-                                            Back
-                                        </button>
-                                        <button
-                                            onClick={processBooking}
-                                            disabled={processingBooking ||
-                                                (depositPayment.paymentMethod === 'tinympesa' && !depositPayment.mpesaPhone) ||
-                                                (depositPayment.paymentMethod === 'stripe' && (!depositPayment.cardDetails.number || !depositPayment.cardDetails.name))
-                                            }
+                                            onClick={scheduleTour}
+                                            disabled={!tourDetails.preferredDate || !tourDetails.preferredTime || schedulingTour}
                                             className="flex-1 px-4 py-2 bg-nestie-black text-white rounded-lg hover:bg-nestie-grey-800 disabled:opacity-50 flex items-center justify-center"
                                         >
-                                            {processingBooking ? (
+                                            {schedulingTour ? (
                                                 <>
                                                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                                    Processing...
+                                                    Scheduling...
                                                 </>
                                             ) : (
-                                                'Pay Deposit & Book'
+                                                'Schedule Tour'
                                             )}
                                         </button>
                                     </div>
                                 </div>
-                            )}
-
-                            {/* Step 3: Confirmation */}
-                            {bookingStep === 'confirmation' && (
-                                <div className="space-y-4 text-center">
-                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                                        <CheckCircle className="h-8 w-8 text-green-600" />
-                                    </div>
-
-                                    <h3 className="text-xl font-semibold text-nestie-black">Booking Submitted!</h3>
-
-                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                        <h4 className="font-medium text-green-800 mb-2">What happens next?</h4>
-                                        <ul className="text-green-700 text-sm space-y-1 text-left">
-                                            <li>• Your booking request has been sent to the property agent</li>
-                                            <li>• The agent will review your application within 24-48 hours</li>
-                                            <li>• You'll receive a notification once the agent responds</li>
-                                            <li>• If approved, you can proceed with the lease agreement</li>
-                                            <li>• Your deposit of KSh {parseInt(depositPayment.amount).toLocaleString()} has been processed</li>
-                                        </ul>
-                                    </div>
-
-                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                        <h4 className="font-medium text-blue-800 mb-2">Booking Reference</h4>
-                                        <p className="text-blue-700 font-mono text-lg">
-                                            BK-{bookingProperty.id.slice(0, 8).toUpperCase()}-{Date.now().toString().slice(-6)}
-                                        </p>
-                                        <p className="text-blue-600 text-xs mt-1">
-                                            Save this reference number for your records
-                                        </p>
-                                    </div>
-
-                                    <div className="flex space-x-3 pt-4">
-                                        <button
-                                            onClick={() => {
-                                                setShowBookingModal(false)
-                                                setActiveTab('overview')
-                                            }}
-                                            className="flex-1 px-4 py-2 bg-nestie-black text-white rounded-lg hover:bg-nestie-grey-800"
-                                        >
-                                            Go to Dashboard
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setShowBookingModal(false)
-                                                setActiveTab('search')
-                                            }}
-                                            className="flex-1 px-4 py-2 border border-nestie-grey-300 text-nestie-grey-700 rounded-lg hover:bg-nestie-grey-50"
-                                        >
-                                            Continue Searching
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Chat Modal */}
-            {showChatModal && selectedAgent && chatProperty && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl w-full max-w-2xl h-[600px] flex flex-col">
-                        <div className="border-b border-nestie-grey-200 p-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <div className="w-10 h-10 bg-nestie-grey-300 rounded-full flex items-center justify-center">
-                                        <User className="h-5 w-5 text-nestie-grey-600" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-lg font-semibold text-nestie-black">
-                                            {selectedAgent.name || selectedAgent.email}
-                                        </h2>
-                                        <p className="text-sm text-nestie-grey-600">
-                                            Agent for {chatProperty.title}
-                                        </p>
-                                    </div>
-                                </div>
-                                <button onClick={() => setShowChatModal(false)}>
-                                    <X className="h-6 w-6 text-nestie-grey-500" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Messages Area */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                            {chatMessages.length === 0 ? (
-                                <div className="text-center text-nestie-grey-500 py-8">
-                                    <Mail className="h-12 w-12 mx-auto mb-4 text-nestie-grey-400" />
-                                    <p>No messages yet. Start the conversation!</p>
-                                </div>
-                            ) : (
-                                chatMessages.map((message, index) => (
-                                    <div
-                                        key={index}
-                                        className={`flex ${message.sender_type === 'tenant' ? 'justify-end' : 'justify-start'}`}
-                                    >
-                                        <div
-                                            className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${message.sender_type === 'tenant'
-                                                    ? 'bg-nestie-black text-white'
-                                                    : 'bg-nestie-grey-100 text-nestie-black'
-                                                }`}
-                                        >
-                                            <p className="text-sm">{message.message}</p>
-                                            <p className={`text-xs mt-1 ${message.sender_type === 'tenant' ? 'text-nestie-grey-300' : 'text-nestie-grey-500'
-                                                }`}>
-                                                {new Date(message.created_at).toLocaleTimeString()}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-
-                        {/* Message Input */}
-                        <div className="border-t border-nestie-grey-200 p-4">
-                            <div className="flex space-x-2">
-                                <input
-                                    type="text"
-                                    value={newMessage}
-                                    onChange={(e) => setNewMessage(e.target.value)}
-                                    placeholder="Type your message..."
-                                    className="flex-1 px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
-                                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                                />
-                                <button
-                                    onClick={sendMessage}
-                                    disabled={!newMessage.trim() || sendingMessage}
-                                    className="bg-nestie-black text-white px-4 py-2 rounded-lg hover:bg-nestie-grey-800 disabled:opacity-50 flex items-center"
-                                >
-                                    {sendingMessage ? (
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                    ) : (
-                                        <Send className="h-4 w-4" />
-                                    )}
-                                </button>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-
-            {/* Tour Scheduling Modal */}
-            {showTourModal && tourProperty && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl w-full max-w-md mx-4">
-                        <div className="p-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-xl font-bold text-nestie-black">Schedule Tour</h2>
-                                <button onClick={() => setShowTourModal(false)}>
-                                    <X className="h-5 w-5 text-nestie-grey-500" />
-                                </button>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                    <h3 className="font-semibold text-blue-900 mb-2">{tourProperty.title}</h3>
-                                    <p className="text-blue-700 text-sm">{tourProperty.location?.address}</p>
-                                    <p className="text-blue-800 font-medium mt-2">
-                                        KSh {parseInt(tourProperty.price).toLocaleString()}/{tourProperty.listingType === 'rent' ? 'month' : tourProperty.listingType}
-                                    </p>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
-                                            Preferred Date *
-                                        </label>
-                                        <input
-                                            type="date"
-                                            value={tourDetails.preferredDate}
-                                            onChange={(e) => setTourDetails({ ...tourDetails, preferredDate: e.target.value })}
-                                            min={new Date().toISOString().split('T')[0]}
-                                            className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
-                                            Preferred Time *
-                                        </label>
-                                        <select
-                                            value={tourDetails.preferredTime}
-                                            onChange={(e) => setTourDetails({ ...tourDetails, preferredTime: e.target.value })}
-                                            className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
-                                        >
-                                            <option value="">Select time</option>
-                                            <option value="09:00">9:00 AM</option>
-                                            <option value="10:00">10:00 AM</option>
-                                            <option value="11:00">11:00 AM</option>
-                                            <option value="12:00">12:00 PM</option>
-                                            <option value="13:00">1:00 PM</option>
-                                            <option value="14:00">2:00 PM</option>
-                                            <option value="15:00">3:00 PM</option>
-                                            <option value="16:00">4:00 PM</option>
-                                            <option value="17:00">5:00 PM</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-nestie-grey-700 mb-2">
-                                        Additional Message (Optional)
-                                    </label>
-                                    <textarea
-                                        value={tourDetails.message}
-                                        onChange={(e) => setTourDetails({ ...tourDetails, message: e.target.value })}
-                                        placeholder="Any specific requirements or questions..."
-                                        rows={3}
-                                        className="w-full px-3 py-2 border border-nestie-grey-300 rounded-lg focus:ring-2 focus:ring-nestie-black focus:border-transparent"
-                                    />
-                                </div>
-
-                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                    <h4 className="font-medium text-green-800 mb-2">What happens next?</h4>
-                                    <ul className="text-green-700 text-sm space-y-1">
-                                        <li>• Your tour request will be sent to the agent</li>
-                                        <li>• The agent will confirm or suggest alternative times</li>
-                                        <li>• You'll receive a notification with the confirmation</li>
-                                        <li>• Meet the agent at the property on the scheduled time</li>
-                                    </ul>
-                                </div>
-
-                                <div className="flex space-x-3 pt-4">
-                                    <button
-                                        onClick={() => setShowTourModal(false)}
-                                        className="flex-1 px-4 py-2 border border-nestie-grey-300 text-nestie-grey-700 rounded-lg hover:bg-nestie-grey-50"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={scheduleTour}
-                                        disabled={!tourDetails.preferredDate || !tourDetails.preferredTime || schedulingTour}
-                                        className="flex-1 px-4 py-2 bg-nestie-black text-white rounded-lg hover:bg-nestie-grey-800 disabled:opacity-50 flex items-center justify-center"
-                                    >
-                                        {schedulingTour ? (
-                                            <>
-                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                                Scheduling...
-                                            </>
-                                        ) : (
-                                            'Schedule Tour'
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+                )
+            }
         </div>
     )
 }
