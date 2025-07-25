@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import CalendarBooking from '@/components/CalendarBooking'
+import { useAuth } from '@/lib/auth'
 import {
   ArrowLeft,
   Heart,
@@ -99,12 +101,15 @@ const ROOM_LABELS = {
 
 export default function PropertyDetailPage() {
   const params = useParams()
+  const { user } = useAuth()
+  const router = useRouter()
   const [property, setProperty] = useState<any>(null)
   const [agent, setAgent] = useState<any>(null)
   const [selectedImageCategory, setSelectedImageCategory] = useState<string>('exterior')
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
   const [isFavorite, setIsFavorite] = useState(false)
   const [showImageModal, setShowImageModal] = useState(false)
+  const [showBookingModal, setShowBookingModal] = useState(false)
 
   useEffect(() => {
     // Find property by ID
@@ -137,11 +142,31 @@ export default function PropertyDetailPage() {
   }
 
   const handleBookViewing = () => {
-    toast.success('Viewing request sent to agent')
+    if (!user) {
+      toast.error('Please login to book a viewing')
+      router.push('/auth/login')
+      return
+    }
+    setShowBookingModal(true)
+  }
+
+  const handleScheduleTour = () => {
+    if (!user) {
+      toast.error('Please login to schedule a tour')
+      router.push('/auth/login')
+      return
+    }
+    setShowBookingModal(true)
   }
 
   const handleContact = () => {
     toast.success('Contact information copied')
+  }
+
+  const handleBookingComplete = (bookingData: any) => {
+    toast.success('Booking completed successfully!')
+    setShowBookingModal(false)
+    // Optionally redirect to calendar or dashboard
   }
 
   const getImagesForCategory = (category: string) => {
@@ -464,15 +489,15 @@ export default function PropertyDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <Button variant="outline" className="w-full justify-start">
-                      <Heart className="h-4 w-4 mr-2" />
-                      Save Property
+                    <Button variant="outline" className="w-full justify-start" onClick={toggleFavorite}>
+                      <Heart className={`h-4 w-4 mr-2 ${isFavorite ? 'fill-current text-red-500' : ''}`} />
+                      {isFavorite ? 'Remove from Favorites' : 'Save Property'}
                     </Button>
-                    <Button variant="outline" className="w-full justify-start">
+                    <Button variant="outline" className="w-full justify-start" onClick={handleShare}>
                       <Share2 className="h-4 w-4 mr-2" />
                       Share Property
                     </Button>
-                    <Button variant="outline" className="w-full justify-start">
+                    <Button variant="outline" className="w-full justify-start" onClick={handleScheduleTour}>
                       <Calendar className="h-4 w-4 mr-2" />
                       Schedule Tour
                     </Button>
@@ -519,6 +544,16 @@ export default function PropertyDetailPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Enhanced Calendar Booking Modal */}
+      {showBookingModal && property && agent && (
+        <CalendarBooking
+          property={property}
+          agent={agent}
+          onClose={() => setShowBookingModal(false)}
+          onBookingComplete={handleBookingComplete}
+        />
+      )}
     </div>
   )
 }

@@ -42,6 +42,7 @@ import {
 import { useAuth } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 import { TransactionService, Transaction, PropertyTenancy, Notification } from '@/lib/transactionService'
+import CalendarBooking from '@/components/CalendarBooking'
 import toast from 'react-hot-toast'
 
 export default function TenantPortal() {
@@ -505,15 +506,30 @@ export default function TenantPortal() {
         setSearchFilters(prev => ({ ...prev, amenities: updatedAmenities }))
     }
 
-    // Booking and payment flow functions
+    // Enhanced booking flow with calendar integration
     const handleBookNow = (property: any) => {
+        if (!user) {
+            toast.error('Please login to book a property')
+            return
+        }
+        
         setBookingProperty(property)
-        setBookingStep('details')
-        setDepositPayment(prev => ({
-            ...prev,
-            amount: property.terms?.deposit || (property.price * 0.1).toString() // Default 10% deposit
-        }))
         setShowBookingModal(true)
+    }
+
+    // Handle booking completion from CalendarBooking component
+    const handleBookingComplete = (bookingData: any) => {
+        toast.success('Booking completed successfully!')
+        setShowBookingModal(false)
+        setBookingProperty(null)
+        
+        // Refresh user data to show new booking
+        loadUserData()
+        
+        // Optionally redirect to calendar
+        if (bookingData.booking_type !== 'viewing') {
+            toast.success('Payment processed! Check your calendar for the appointment.')
+        }
     }
 
     const processBooking = async () => {
@@ -2616,45 +2632,19 @@ export default function TenantPortal() {
                 </div>
             )}
 
-            {/* Booking Modal */}
+            {/* Enhanced Calendar Booking Modal */}
             {showBookingModal && bookingProperty && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <div className="sticky top-0 bg-white border-b border-nestie-grey-200 p-6">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-2xl font-bold text-nestie-black">Book Property</h2>
-                                <button onClick={() => setShowBookingModal(false)}>
-                                    <X className="h-6 w-6 text-nestie-grey-500" />
-                                </button>
-                            </div>
-
-                            {/* Progress Steps */}
-                            <div className="flex items-center mt-4">
-                                <div className={`flex items-center ${bookingStep === 'details' ? 'text-nestie-black' : 'text-green-600'}`}>
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bookingStep === 'details' ? 'bg-nestie-black text-white' : 'bg-green-500 text-white'}`}>
-                                        {bookingStep === 'details' ? '1' : <CheckCircle className="h-5 w-5" />}
-                                    </div>
-                                    <span className="ml-2 text-sm font-medium">Details</span>
-                                </div>
-                                <div className="flex-1 h-px bg-nestie-grey-300 mx-4"></div>
-                                <div className={`flex items-center ${bookingStep === 'payment' ? 'text-nestie-black' : bookingStep === 'confirmation' ? 'text-green-600' : 'text-nestie-grey-400'}`}>
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bookingStep === 'payment' ? 'bg-nestie-black text-white' :
-                                        bookingStep === 'confirmation' ? 'bg-green-500 text-white' :
-                                            'bg-nestie-grey-300 text-nestie-grey-600'
-                                        }`}>
-                                        {bookingStep === 'confirmation' ? <CheckCircle className="h-5 w-5" /> : '2'}
-                                    </div>
-                                    <span className="ml-2 text-sm font-medium">Payment</span>
-                                </div>
-                                <div className="flex-1 h-px bg-nestie-grey-300 mx-4"></div>
-                                <div className={`flex items-center ${bookingStep === 'confirmation' ? 'text-nestie-black' : 'text-nestie-grey-400'}`}>
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bookingStep === 'confirmation' ? 'bg-nestie-black text-white' : 'bg-nestie-grey-300 text-nestie-grey-600'}`}>
-                                        3
-                                    </div>
-                                    <span className="ml-2 text-sm font-medium">Confirmation</span>
-                                </div>
-                            </div>
-                        </div>
+                <CalendarBooking
+                    property={bookingProperty}
+                    agent={bookingProperty.agent || { 
+                        id: bookingProperty.agent_id, 
+                        full_name: 'Property Agent', 
+                        email: 'agent@example.com' 
+                    }}
+                    onClose={() => setShowBookingModal(false)}
+                    onBookingComplete={handleBookingComplete}
+                />
+            )}
 
                         <div className="p-6">
                             {/* Property Summary */}

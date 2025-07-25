@@ -159,7 +159,152 @@ DROP POLICY IF EXISTS "Users can manage own saved properties" ON saved_propertie
 CREATE POLICY "Users can manage own saved properties" ON saved_properties
   FOR ALL USING (auth.uid() = user_id);
 
--- 21. Create a scheduled job to run cleanup (if pg_cron is available)
+-- 21. Create calendar_bookings table for enhanced booking system
+CREATE TABLE IF NOT EXISTS calendar_bookings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  property_id UUID REFERENCES properties(id) ON DELETE CASCADE NOT NULL,
+  tenant_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  agent_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  booking_type TEXT CHECK (booking_type IN ('viewing', 'lease', 'purchase')) NOT NULL,
+  scheduled_date DATE NOT NULL,
+  scheduled_time TIME NOT NULL,
+  amount_paid DECIMAL(12,2) DEFAULT 0,
+  payment_method TEXT CHECK (payment_method IN ('tinympesa', 'stripe')),
+  payment_reference TEXT,
+  status TEXT CHECK (status IN ('confirmed', 'completed', 'cancelled')) DEFAULT 'confirmed',
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 22. Create calendar_events table for calendar integration
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  booking_id UUID REFERENCES calendar_bookings(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  user_type TEXT CHECK (user_type IN ('tenant', 'agent')) NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  start_date DATE NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  location TEXT,
+  property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
+  status TEXT CHECK (status IN ('confirmed', 'completed', 'cancelled')) DEFAULT 'confirmed',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 23. Add indexes for calendar tables
+CREATE INDEX IF NOT EXISTS idx_calendar_bookings_property_id ON calendar_bookings(property_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_bookings_tenant_id ON calendar_bookings(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_bookings_agent_id ON calendar_bookings(agent_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_bookings_date ON calendar_bookings(scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_calendar_bookings_status ON calendar_bookings(status);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_events_user_id ON calendar_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_booking_id ON calendar_events(booking_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_date ON calendar_events(start_date);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_property_id ON calendar_events(property_id);
+
+-- 24. Add RLS policies for calendar tables
+ALTER TABLE calendar_bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
+
+-- Users can see bookings they're involved in (as tenant or agent)
+DROP POLICY IF EXISTS "Users can view relevant bookings" ON calendar_bookings;
+CREATE POLICY "Users can view relevant bookings" ON calendar_bookings
+  FOR SELECT USING (auth.uid() = tenant_id OR auth.uid() = agent_id);
+
+-- Users can create bookings as tenants
+DROP POLICY IF EXISTS "Tenants can create bookings" ON calendar_bookings;
+CREATE POLICY "Tenants can create bookings" ON calendar_bookings
+  FOR INSERT WITH CHECK (auth.uid() = tenant_id);
+
+-- Agents can update bookings for their properties
+DROP POLICY IF EXISTS "Agents can update bookings" ON calendar_bookings;
+CREATE POLICY "Agents can update bookings" ON calendar_bookings
+  FOR UPDATE USING (auth.uid() = agent_id);
+
+-- Users can see their own calendar events
+DROP POLICY IF EXISTS "Users can view own calendar events" ON calendar_events;
+CREATE POLICY "Users can view own calendar events" ON calendar_events
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- Users can create their own calendar events
+DROP POLICY IF EXISTS "Users can create calendar events" ON calendar_events;
+CREATE POLICY "Users can create calendar events" ON calendar_events
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Users can update their own calendar events
+DROP POLICY IF EXISTS "Users can update own calendar events" ON calendar_events;
+CREATE POLICY "Users can update own calendar events" ON calendar_events
+  FOR UPDATE USING (auth.uid() = user_id);
+
+-- 25. Create triggers for updated_at columns
+CREATE TRIGGER update_calendar_bookings_updated_at BEFORE UPDATE ON calendar_bookings
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_calendar_events_updated_at BEFORE UPDATE ON calendar_events
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- 26. Create a function to get upcoming appointments
+CREATE OR REPLACE FUNCTION get_upcoming_appointments(user_id_param UUID, user_type_param TEXT)
+RETURNS TABLE(
+  booking_id UUID,
+  property_title TEXT,
+  property_address TEXT,
+  booking_type TEXT,
+  scheduled_date DATE,
+  scheduled_time TIME,
+  other_party_name TEXT,
+  other_party_email TEXT,
+  amount_paid DECIMAL
+) AS $$
+BEGIN
+  IF user_type_param = 'tenant' THEN
+    RETURN QUERY
+    SELECT 
+      cb.id as booking_id,
+      p.title as property_title,
+      p.location->>'address' as property_address,
+      cb.booking_type,
+      cb.scheduled_date,
+      cb.scheduled_time,
+      agent.full_name as other_party_name,
+      agent.email as other_party_email,
+      cb.amount_paid
+    FROM calendar_bookings cb
+    JOIN properties p ON cb.property_id = p.id
+    JOIN profiles agent ON cb.agent_id = agent.id
+    WHERE cb.tenant_id = user_id_param
+      AND cb.scheduled_date >= CURRENT_DATE
+      AND cb.status = 'confirmed'
+    ORDER BY cb.scheduled_date, cb.scheduled_time;
+  ELSE
+    RETURN QUERY
+    SELECT 
+      cb.id as booking_id,
+      p.title as property_title,
+      p.location->>'address' as property_address,
+      cb.booking_type,
+      cb.scheduled_date,
+      cb.scheduled_time,
+      tenant.full_name as other_party_name,
+      tenant.email as other_party_email,
+      cb.amount_paid
+    FROM calendar_bookings cb
+    JOIN properties p ON cb.property_id = p.id
+    JOIN profiles tenant ON cb.tenant_id = tenant.id
+    WHERE cb.agent_id = user_id_param
+      AND cb.scheduled_date >= CURRENT_DATE
+      AND cb.status = 'confirmed'
+    ORDER BY cb.scheduled_date, cb.scheduled_time;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 27. Create a scheduled job to run cleanup (if pg_cron is available)
 -- SELECT cron.schedule('cleanup-old-data', '0 2 * * 0', 'SELECT cleanup_old_data();');
 
 COMMIT;
