@@ -1,6 +1,6 @@
 import { Property, supabase } from './supabase'
 import { PostgrestError } from '@supabase/supabase-js'
-import { Profile, PropertyTenancy } from './types'
+import { Profile, PropertyTenancy, Notification } from './types'
 import { Transaction } from './transactionService'
 
 // Standardized response type

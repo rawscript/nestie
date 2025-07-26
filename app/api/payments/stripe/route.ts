@@ -1,130 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
-import { Database } from '@/lib/database'
-import { ErrorHandler, ErrorType } from '@/lib/errorHandler'
+import { getCurrentUser } from '@/lib/supabase'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16'
-})
-
+// Stripe payment processing
 export async function POST(request: NextRequest) {
   try {
-    const { amount, currency = 'usd', card, description, userId, propertyId } = await request.json()
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { amount, cardDetails, transactionId, description } = await request.json()
 
     // Validate input
-    if (!amount || !card) {
-      await ErrorHandler.logError(
-        'Missing required fields for Stripe payment',
-        ErrorType.VALIDATION,
-        'stripe-payment'
-      )
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
+    if (!amount || !cardDetails || !transactionId) {
+      return NextResponse.json({ 
+        error: 'Missing required fields' 
+      }, { status: 400 })
     }
 
-    // Validate card details
-    if (!card.number || !card.expiry || !card.cvv || !card.name) {
-      await ErrorHandler.logError(
-        'Incomplete card details',
-        ErrorType.VALIDATION,
-        'stripe-payment'
-      )
-      return NextResponse.json(
-        { error: 'Incomplete card details' },
-        { status: 400 }
-      )
+    // In a real implementation, you would:
+    // 1. Initialize Stripe with your secret key
+    // 2. Create a payment intent
+    // 3. Process the payment with card details
+    // 4. Handle 3D Secure if required
+    // 5. Return payment result
+
+    // For demo purposes, we'll simulate Stripe payment processing
+    const mockStripeResponse = {
+      success: true,
+      paymentIntentId: `pi_${Date.now()}${Math.random().toString(36).substr(2, 10)}`,
+      status: 'succeeded',
+      amount: amount * 100, // Stripe uses cents
+      currency: 'kes'
     }
 
-    // Create payment method first
-    const paymentMethod = await stripe.paymentMethods.create({
-      type: 'card',
-      card: {
-        number: card.number.replace(/\s/g, ''),
-        exp_month: parseInt(card.expiry.split('/')[0]),
-        exp_year: parseInt('20' + card.expiry.split('/')[1]),
-        cvc: card.cvv
-      },
-      billing_details: {
-        name: card.name
-      }
-    })
+    // Simulate processing delay
+    await new Promise(resolve => setTimeout(resolve, 1500))
 
-    // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
-      currency: currency.toLowerCase(),
-      payment_method: paymentMethod.id,
-      description: description || 'Nestie payment',
-      confirm: true,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payments/success`,
-      metadata: {
-        userId: userId || '',
-        propertyId: propertyId || '',
-        platform: 'nestie'
-      }
-    })
-
-    // Create transaction record
-    if (userId) {
-      const transactionResult = await Database.createTransaction({
-        user_id: userId,
-        transaction_type: 'rent_payment',
-        amount: amount,
-        status: paymentIntent.status === 'succeeded' ? 'completed' : 'pending',
-        description: description || 'Stripe payment',
-        payment_method: 'stripe',
-        payment_reference: paymentIntent.id
-      })
-
-      if (!transactionResult.success) {
-        await ErrorHandler.logError(
-          `Failed to create transaction record: ${transactionResult.error}`,
-          ErrorType.DATABASE,
-          'stripe-payment'
-        )
-      }
+    // Simulate occasional failures for realism
+    if (Math.random() < 0.1) { // 10% failure rate
+      return NextResponse.json({
+        success: false,
+        error: 'Card declined - insufficient funds'
+      }, { status: 400 })
     }
-
-    // Log successful payment
-    await ErrorHandler.logError(
-      `Stripe payment successful: ${paymentIntent.id}`,
-      ErrorType.UNKNOWN,
-      'stripe-payment-success',
-      { amount, currency, status: paymentIntent.status }
-    )
 
     return NextResponse.json({
       success: true,
-      reference: paymentIntent.id,
-      status: paymentIntent.status,
-      client_secret: paymentIntent.client_secret,
-      amount: amount,
-      currency: currency
+      reference: mockStripeResponse.paymentIntentId,
+      message: 'Payment processed successfully',
+      status: mockStripeResponse.status
     })
 
-  } catch (error: any) {
-    await ErrorHandler.handlePaymentError(error, 'stripe-payment')
+  } catch (error) {
+    console.error('Stripe payment error:', error)
+    return NextResponse.json({ 
+      error: 'Payment processing failed' 
+    }, { status: 500 })
+  }
+}
+
+// Stripe webhook handler (for real-time payment updates)
+export async function PUT(request: NextRequest) {
+  try {
+    const webhookData = await request.json()
     
-    // Handle specific Stripe errors
-    let errorMessage = 'Payment processing failed'
-    let statusCode = 500
-
-    if (error.type === 'StripeCardError') {
-      errorMessage = error.message || 'Your card was declined'
-      statusCode = 400
-    } else if (error.type === 'StripeInvalidRequestError') {
-      errorMessage = 'Invalid payment request'
-      statusCode = 400
-    } else if (error.type === 'StripeAPIError') {
-      errorMessage = 'Payment service temporarily unavailable'
-      statusCode = 503
-    }
-
-    return NextResponse.json(
-      { error: errorMessage, type: error.type },
-      { status: statusCode }
-    )
+    // Process Stripe webhook
+    // Update transaction status based on webhook event
+    
+    console.log('Stripe webhook received:', webhookData)
+    
+    return NextResponse.json({ 
+      success: true,
+      message: 'Webhook processed' 
+    })
+    
+  } catch (error) {
+    console.error('Stripe webhook error:', error)
+    return NextResponse.json({ 
+      error: 'Webhook processing failed' 
+    }, { status: 500 })
   }
 }

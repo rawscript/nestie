@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   tenancy_id UUID REFERENCES property_tenancies(id) ON DELETE CASCADE,
-  transaction_type TEXT CHECK (transaction_type IN ('rent_payment', 'deposit_payment', 'termination_request', 'booking_payment')) NOT NULL,
+  transaction_type TEXT CHECK (transaction_type IN ('rent_payment', 'deposit_payment', 'rent_termination', 'lease_renewal', 'maintenance_request', 'booking_payment')) NOT NULL,
   amount DECIMAL(12,2),
   status TEXT CHECK (status IN ('pending', 'approved', 'rejected', 'completed')) DEFAULT 'pending',
   description TEXT NOT NULL,

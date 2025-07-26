@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   tenant_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   agent_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   property_id TEXT NOT NULL,
-  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('rent_payment', 'rent_termination', 'lease_renewal', 'maintenance_request', 'deposit_payment')),
+  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('rent_payment', 'deposit_payment', 'rent_termination', 'lease_renewal', 'maintenance_request', 'booking_payment')),
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'completed')),
   amount DECIMAL(10,2),
   description TEXT,

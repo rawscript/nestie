@@ -133,7 +133,7 @@ export interface Property {
 }
 
 // Transaction types
-export type TransactionType = 'rent_payment' | 'deposit_payment' | 'termination_request' | 'booking_payment'
+export type TransactionType = 'rent_payment' | 'deposit_payment' | 'rent_termination' | 'lease_renewal' | 'maintenance_request' | 'booking_payment'
 export type TransactionStatus = 'pending' | 'approved' | 'rejected' | 'completed'
 export type PaymentMethod = 'tinympesa' | 'stripe' | 'bank_transfer'
 
@@ -431,6 +431,6 @@ export const USER_ROLES = ['tenant', 'agent'] as const
 export const PROPERTY_TYPES = ['apartment', 'house', 'commercial', 'land'] as const
 export const LISTING_TYPES = ['rent', 'sale', 'lease'] as const
 export const PROPERTY_STATUSES = ['available', 'occupied', 'sold', 'pending'] as const
-export const TRANSACTION_TYPES = ['rent_payment', 'deposit_payment', 'termination_request', 'booking_payment'] as const
+export const TRANSACTION_TYPES = ['rent_payment', 'deposit_payment', 'rent_termination', 'lease_renewal', 'maintenance_request', 'booking_payment'] as const
 export const TRANSACTION_STATUSES = ['pending', 'approved', 'rejected', 'completed'] as const
 export const PAYMENT_METHODS = ['tinympesa', 'stripe', 'bank_transfer'] as const

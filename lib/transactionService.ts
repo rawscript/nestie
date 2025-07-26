@@ -2,18 +2,18 @@ import { supabase } from './supabase'
 
 export interface Transaction {
   id: string
-  tenant_id: string
-  agent_id: string
-  property_id: string
-  transaction_type: 'rent_payment' | 'rent_termination' | 'lease_renewal' | 'maintenance_request' | 'deposit_payment'
-  status: 'pending' | 'approved' | 'rejected' | 'completed'
+  user_id: string
+  tenancy_id?: string
+  transaction_type: 'rent_payment' | 'deposit_payment' | 'rent_termination' | 'lease_renewal' | 'maintenance_request' | 'booking_payment'
   amount?: number
-  description?: string
-  metadata?: any
+  status: 'pending' | 'approved' | 'rejected' | 'completed'
+  description: string
+  payment_method?: 'tinympesa' | 'stripe' | 'bank_transfer'
+  payment_reference?: string
+  authorized_by?: string
+  authorized_at?: string
   created_at: string
   updated_at: string
-  authorized_at?: string
-  completed_at?: string
 }
 
 export interface PropertyTenancy {
