@@ -116,10 +116,12 @@ export function Navigation({ userRole, showAuthButtons = false }: NavigationProp
           {/* User Menu */}
           {userRole && (
             <div className="hidden md:flex items-center space-x-3">
-              <Button variant="ghost" size="sm">
-                <User className="h-4 w-4 mr-2" />
-                Profile
-              </Button>
+              <Link href="/profile">
+                <Button variant="ghost" size="sm">
+                  <User className="h-4 w-4 mr-2" />
+                  Profile
+                </Button>
+              </Link>
               <Button variant="outline" size="sm" onClick={handleLogout}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
@@ -196,10 +198,14 @@ export function Navigation({ userRole, showAuthButtons = false }: NavigationProp
                   )
                 })}
                 <div className="border-t border-nestie-grey-200 pt-4 mt-4 space-y-2">
-                  <button className="flex items-center space-x-3 py-3 px-4 w-full text-left text-nestie-grey-600 hover:bg-nestie-grey-50 rounded-lg">
+                  <Link 
+                    href="/profile"
+                    className="flex items-center space-x-3 py-3 px-4 w-full text-left text-nestie-grey-600 hover:bg-nestie-grey-50 rounded-lg"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
                     <User className="h-5 w-5" />
                     <span>Profile</span>
-                  </button>
+                  </Link>
                   <button 
                     onClick={handleLogout}
                     className="flex items-center space-x-3 py-3 px-4 w-full text-left text-nestie-grey-600 hover:bg-nestie-grey-50 rounded-lg"

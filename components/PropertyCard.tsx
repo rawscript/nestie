@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Heart, MapPin, Eye } from 'lucide-react'
+import { Heart, MapPin, Eye, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { formatPrice } from '@/lib/utils'
@@ -23,6 +23,8 @@ interface PropertyCardProps {
   }
   isFavorite?: boolean
   onToggleFavorite?: () => void
+  onRemoveFromSaved?: () => void
+  showRemoveButton?: boolean
   viewMode?: 'grid' | 'list'
 }
 
@@ -30,6 +32,8 @@ export function PropertyCard({
   property, 
   isFavorite = false, 
   onToggleFavorite, 
+  onRemoveFromSaved,
+  showRemoveButton = false,
   viewMode = 'grid' 
 }: PropertyCardProps) {
   const toggleFavorite = (e: React.MouseEvent) => {
@@ -37,6 +41,14 @@ export function PropertyCard({
     e.stopPropagation()
     if (onToggleFavorite) {
       onToggleFavorite()
+    }
+  }
+
+  const handleRemove = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (onRemoveFromSaved) {
+      onRemoveFromSaved()
     }
   }
 
@@ -54,7 +66,17 @@ export function PropertyCard({
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Eye className="h-8 w-8 text-nestie-grey-400" />
                 </div>
-                <div className="absolute top-2 right-2">
+                <div className="absolute top-2 right-2 flex space-x-1">
+                  {showRemoveButton && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 bg-nestie-white/80 rounded-full"
+                      onClick={handleRemove}
+                    >
+                      <X className="h-4 w-4 text-red-500" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -119,7 +141,17 @@ export function PropertyCard({
             <div className="absolute inset-0 flex items-center justify-center">
               <Eye className="h-8 w-8 text-nestie-grey-400" />
             </div>
-            <div className="absolute top-2 right-2">
+            <div className="absolute top-2 right-2 flex space-x-1">
+              {showRemoveButton && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 bg-nestie-white/80 rounded-full"
+                  onClick={handleRemove}
+                >
+                  <X className="h-4 w-4 text-red-500" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
