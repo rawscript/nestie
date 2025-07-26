@@ -13,7 +13,8 @@ import {
     Bell,
     MessageSquare,
     Search,
-    User
+    User,
+    Camera
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -38,6 +39,7 @@ interface PropertyFormData {
     }
     amenities: string[]
     images: LabeledImage[]
+    virtual_tour_url?: string
 }
 
 export default function AddPropertyPage() {
@@ -58,7 +60,8 @@ export default function AddPropertyPage() {
             lng: 36.8219
         },
         amenities: [],
-        images: []
+        images: [],
+        virtual_tour_url: ''
     })
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -363,6 +366,35 @@ export default function AddPropertyPage() {
                             onImagesChange={handleImagesChange}
                             maxImages={15}
                         />
+                    </motion.div>
+
+                    {/* Virtual Tour */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.45 }}
+                    >
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center">
+                                    <Camera className="h-5 w-5 mr-2" />
+                                    Virtual Tour (Optional)
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <Input
+                                    label="Virtual Tour URL"
+                                    name="virtual_tour_url"
+                                    type="url"
+                                    value={formData.virtual_tour_url || ''}
+                                    onChange={handleInputChange}
+                                    placeholder="https://example.com/360-tour or https://matterport.com/show/?m=..."
+                                />
+                                <p className="text-sm text-nestie-grey-500 mt-2">
+                                    Add a link to your 360° virtual tour (Matterport, Kuula, etc.) to give tenants an immersive property experience.
+                                </p>
+                            </CardContent>
+                        </Card>
                     </motion.div>
 
                     {/* Submit */}
