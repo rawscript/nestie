@@ -1,4 +1,3 @@
-import { size } from 'lodash'
 import React, { useState, useCallback, createContext, useContext, ReactNode, useMemo } from 'react'
 
 // Loading state types

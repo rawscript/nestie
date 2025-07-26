@@ -1,5 +1,7 @@
-import { supabase } from './supabase'
+import { Property, supabase } from './supabase'
 import { PostgrestError } from '@supabase/supabase-js'
+import { Profile, PropertyTenancy } from './types'
+import { Transaction } from './transactionService'
 
 // Standardized response type
 export interface DatabaseResponse<T> {
@@ -25,12 +27,12 @@ export class Database {
   // Generic error handler
   private static handleError(error: PostgrestError | Error | any): string {
     console.error('Database Error:', error)
-    
+
     if (error?.code === 'PGRST116') return 'No data found'
     if (error?.code === '23505') return 'Record already exists'
     if (error?.code === '23503') return 'Referenced record not found'
     if (error?.message) return error.message
-    
+
     return 'An unexpected database error occurred'
   }
 
@@ -41,10 +43,10 @@ export class Database {
 
   // Generic error response
   private static failure<T>(error: any): DatabaseResponse<T> {
-    return { 
-      data: null, 
-      error: this.handleError(error), 
-      success: false 
+    return {
+      data: null,
+      error: this.handleError(error),
+      success: false
     }
   }
 
@@ -208,16 +210,16 @@ export class Database {
   }
 
   static async updateTransactionStatus(
-    id: string, 
-    status: Transaction['status'], 
+    id: string,
+    status: Transaction['status'],
     authorizedBy?: string
   ): Promise<DatabaseResponse<Transaction>> {
     try {
-      const updates: any = { 
-        status, 
-        updated_at: new Date().toISOString() 
+      const updates: any = {
+        status,
+        updated_at: new Date().toISOString()
       }
-      
+
       if (authorizedBy) {
         updates.authorized_by = authorizedBy
         updates.authorized_at = new Date().toISOString()
@@ -429,7 +431,10 @@ export class Database {
         .order('created_at', { ascending: false })
 
       if (error) return this.failure(error)
-      return this.success(data?.map(item => item.property).filter(Boolean) || [])
+
+      // Type-safe extraction of properties
+      const properties: Property[] = data?.map((item: any) => item.property as Property).filter(Boolean) || []
+      return this.success(properties)
     } catch (error) {
       return this.failure(error)
     }
@@ -444,7 +449,7 @@ export class Database {
         .limit(1)
 
       if (error) return this.failure(error)
-      
+
       return this.success({
         status: 'healthy',
         timestamp: new Date().toISOString()

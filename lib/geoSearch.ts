@@ -1,3 +1,4 @@
+import React from 'react'
 import { Database } from './database'
 import { ErrorHandler, ErrorType } from './errorHandler'
 import { MonitoringService } from './monitoring'
@@ -35,10 +36,10 @@ export class GeoSearchService {
   // Geocode address to coordinates
   static async geocodeAddress(address: string): Promise<GeoLocation | null> {
     const stopTimer = MonitoringService.startTimer('geocode_address')
-    
+
     try {
       // Try multiple geocoding services for better coverage
-      
+
       // 1. Try Yandex Maps Geocoding API
       const yandexResult = await this.geocodeWithYandex(address)
       if (yandexResult) {
@@ -65,7 +66,7 @@ export class GeoSearchService {
   // Reverse geocode coordinates to address
   static async reverseGeocode(location: GeoLocation): Promise<string | null> {
     const stopTimer = MonitoringService.startTimer('reverse_geocode')
-    
+
     try {
       // Try Yandex Maps first
       const yandexResult = await this.reverseGeocodeWithYandex(location)
@@ -97,7 +98,7 @@ export class GeoSearchService {
     filters: SearchFilters = {}
   ): Promise<GeoSearchResult> {
     const stopTimer = MonitoringService.startTimer('geo_search_radius')
-    
+
     try {
       // Use PostGIS function for radius search
       const response = await fetch('/api/properties/geo-search', {
@@ -129,13 +130,26 @@ export class GeoSearchService {
     } catch (error) {
       stopTimer()
       await ErrorHandler.handleError(error as Error, ErrorType.NETWORK, 'geo_search_radius')
-      
+
       // Fallback to basic search
-      const fallbackResult = await Database.searchProperties(filters)
+      // Convert filters to match Database.searchProperties expected format
+      const dbFilters = {
+        query: filters.query,
+        location: filters.location,
+        priceMin: filters.priceMin,
+        priceMax: filters.priceMax,
+        type: typeof filters.type === 'string' && filters.type !== 'all' ? filters.type : undefined,
+        bedrooms: filters.bedrooms === "any" ? undefined : filters.bedrooms,
+        bathrooms: filters.bathrooms === "any" ? undefined : filters.bathrooms,
+        amenities: filters.amenities ? Object.entries(filters.amenities)
+          .filter(([_, value]) => value === true)
+          .map(([key, _]) => key) : undefined
+      }
+      const fallbackResult = await Database.searchProperties(dbFilters)
       return {
-        properties: fallbackResult.data || [],
+        properties: (fallbackResult.data || []) as unknown as import('./types').Property[],
         center,
-        bounds: this.calculateBounds([center], radius),
+        bounds: this.calculateBounds([center], radius) || { north: 0, south: 0, east: 0, west: 0 },
         count: fallbackResult.data?.length || 0
       }
     }
@@ -151,7 +165,7 @@ export class GeoSearchService {
     }
 
     const stopTimer = MonitoringService.startTimer('geo_search_bounds')
-    
+
     try {
       const response = await fetch('/api/properties/geo-search', {
         method: 'POST',
@@ -173,13 +187,26 @@ export class GeoSearchService {
     } catch (error) {
       stopTimer()
       await ErrorHandler.handleError(error as Error, ErrorType.NETWORK, 'geo_search_bounds')
-      
+
       // Fallback to basic search
-      const fallbackResult = await Database.searchProperties(filters)
+      // Convert filters to match Database.searchProperties expected format
+      const dbFilters = {
+        query: filters.query,
+        location: filters.location,
+        priceMin: filters.priceMin,
+        priceMax: filters.priceMax,
+        type: typeof filters.type === 'string' && filters.type !== 'all' ? filters.type : undefined,
+        bedrooms: filters.bedrooms === "any" ? undefined : filters.bedrooms,
+        bathrooms: filters.bathrooms === "any" ? undefined : filters.bathrooms,
+        amenities: filters.amenities ? Object.entries(filters.amenities)
+          .filter(([_, value]) => value === true)
+          .map(([key, _]) => key) : undefined
+      }
+      const fallbackResult = await Database.searchProperties(dbFilters)
       const center = this.calculateCenter(bounds)
-      
+
       return {
-        properties: fallbackResult.data || [],
+        properties: (fallbackResult.data || []) as unknown as import('./types').Property[],
         center,
         bounds,
         count: fallbackResult.data?.length || 0
@@ -220,12 +247,12 @@ export class GeoSearchService {
     const R = 6371 // Earth's radius in kilometers
     const dLat = this.toRadians(point2.lat - point1.lat)
     const dLng = this.toRadians(point2.lng - point1.lng)
-    
-    const a = 
+
+    const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(this.toRadians(point1.lat)) * Math.cos(this.toRadians(point2.lat)) *
       Math.sin(dLng / 2) * Math.sin(dLng / 2)
-    
+
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     return R * c
   }
@@ -252,7 +279,7 @@ export class GeoSearchService {
     if (radius) {
       const latDelta = radius / 111 // Approximate km to degrees
       const lngDelta = radius / (111 * Math.cos(this.toRadians((north + south) / 2)))
-      
+
       north += latDelta
       south -= latDelta
       east += lngDelta
@@ -276,7 +303,7 @@ export class GeoSearchService {
 
   // Geocoding implementations
   private static async geocodeWithYandex(address: string): Promise<GeoLocation | null> {
-    const apiKey = process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY
+    const apiKey = process.env.NEXT_PUBLIC_YANDEX_API_KEY
     if (!apiKey || apiKey === 'demo-key') return null
 
     try {
@@ -288,7 +315,7 @@ export class GeoSearchService {
 
       const data = await response.json()
       const geoObject = data.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject
-      
+
       if (geoObject) {
         const [lng, lat] = geoObject.Point.pos.split(' ').map(Number)
         return { lat, lng }
@@ -310,7 +337,7 @@ export class GeoSearchService {
       if (!response.ok) return null
 
       const data = await response.json()
-      
+
       if (data.length > 0) {
         return {
           lat: parseFloat(data[0].lat),
@@ -326,7 +353,7 @@ export class GeoSearchService {
   }
 
   private static async reverseGeocodeWithYandex(location: GeoLocation): Promise<string | null> {
-    const apiKey = process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY
+    const apiKey = process.env.NEXT_PUBLIC_YANDEX_API_KEY
     if (!apiKey || apiKey === 'demo-key') return null
 
     try {
@@ -338,7 +365,7 @@ export class GeoSearchService {
 
       const data = await response.json()
       const geoObject = data.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject
-      
+
       return geoObject?.metaDataProperty?.GeocoderMetaData?.text || null
     } catch (error) {
       console.warn('Yandex reverse geocoding failed:', error)
@@ -377,7 +404,7 @@ export function useGeoSearch() {
     if (navigator.permissions) {
       navigator.permissions.query({ name: 'geolocation' }).then((result) => {
         setLocationPermission(result.state as any)
-        
+
         result.addEventListener('change', () => {
           setLocationPermission(result.state as any)
         })

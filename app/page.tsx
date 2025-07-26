@@ -6,13 +6,13 @@ import { Home, MapPin, Shield, Smartphone, ArrowRight, Star, Users, CheckCircle,
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useSessionState, useStateAwareRouter } from '@/lib/sessionStateManager'
+import { useSessionState } from '@/lib/sessionStateManager'
 
 export default function LandingPage() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const { shouldPreventRedirect, isTabActive } = useSessionState('landing-page')
+  const { shouldPreventRedirect } = useSessionState('landing-page')
 
   useEffect(() => {
     // Check for existing session
