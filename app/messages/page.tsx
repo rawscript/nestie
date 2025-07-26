@@ -18,6 +18,9 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { sampleAgents, sampleProperties, type Agent } from '@/lib/sampleData'
+import toast from 'react-hot-toast'
 
 interface Message {
   id: string
@@ -47,6 +50,7 @@ interface Conversation {
 }
 
 export default function MessagesPage() {
+  const searchParams = useSearchParams()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -142,12 +146,70 @@ export default function MessagesPage() {
   ]
 
   useEffect(() => {
-    setConversations(mockConversations)
-    if (mockConversations.length > 0) {
-      setSelectedConversation(mockConversations[0].id)
-      setMessages(mockMessages)
+    const agentId = searchParams.get('agent')
+    const propertyId = searchParams.get('property')
+    
+    let updatedConversations = [...mockConversations]
+    
+    // If agent and property parameters are provided, create or find conversation
+    if (agentId && propertyId) {
+      const agent = sampleAgents.find(a => a.id === agentId)
+      const property = sampleProperties.find(p => p.id === propertyId)
+      
+      if (agent && property) {
+        // Check if conversation already exists
+        const existingConv = updatedConversations.find(c => c.participant.id === agentId)
+        
+        if (!existingConv) {
+          // Create new conversation
+          const newConversation: Conversation = {
+            id: `conv_${agentId}_${propertyId}`,
+            participant: {
+              id: agent.id,
+              name: agent.name,
+              avatar: '/api/placeholder/40/40',
+              role: 'agent',
+              online: true
+            },
+            lastMessage: {
+              id: 'initial',
+              sender_id: 'system',
+              receiver_id: agentId,
+              content: `Started conversation about ${property.title}`,
+              timestamp: new Date().toISOString(),
+              read: true,
+              type: 'text'
+            },
+            unreadCount: 0,
+            property: {
+              id: property.id,
+              title: property.title
+            }
+          }
+          
+          updatedConversations.unshift(newConversation)
+          setSelectedConversation(newConversation.id)
+          
+          // Set initial message template
+          setMessages([])
+          setNewMessage(`Hi! I'm interested in "${property.title}". Could you provide more information?`)
+          
+          toast.success(`Started conversation with ${agent.name}`)
+        } else {
+          setSelectedConversation(existingConv.id)
+          setMessages(mockMessages)
+        }
+      }
+    } else {
+      // Default behavior
+      if (updatedConversations.length > 0) {
+        setSelectedConversation(updatedConversations[0].id)
+        setMessages(mockMessages)
+      }
     }
-  }, [])
+    
+    setConversations(updatedConversations)
+  }, [searchParams])
 
   useEffect(() => {
     scrollToBottom()

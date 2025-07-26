@@ -160,7 +160,14 @@ export default function PropertyDetailPage() {
   }
 
   const handleContact = () => {
-    toast.success('Contact information copied')
+    if (!user) {
+      toast.error('Please login to send a message')
+      router.push('/auth/login')
+      return
+    }
+    
+    // Redirect to messages page with agent info
+    router.push(`/messages?agent=${agent?.id}&property=${property?.id}`)
   }
 
   const handleBookingComplete = (bookingData: any) => {
