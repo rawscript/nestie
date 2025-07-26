@@ -40,7 +40,8 @@ export class PaymentService {
         amount: paymentRequest.amount,
         status: 'pending',
         description: paymentRequest.description,
-        payment_method: paymentRequest.paymentMethod
+        payment_method: paymentRequest.paymentMethod,
+        property_id: undefined
       })
 
       if (!transactionResult.success || !transactionResult.data) {
@@ -384,6 +385,8 @@ export class PaymentService {
         status: 'completed',
         description: `Refund: ${reason}`,
         payment_method: 'bank_transfer' // Default for refunds
+        ,
+        property_id: undefined
       })
 
       if (!refundResult.success) {

@@ -122,7 +122,8 @@ export async function POST(request: NextRequest) {
         status: 'pending',
         description: description || 'M-Pesa payment',
         payment_method: 'tinympesa',
-        payment_reference: mpesaData.id || paymentReference
+        payment_reference: mpesaData.id || paymentReference,
+        property_id: undefined
       })
 
       if (!transactionResult.success) {

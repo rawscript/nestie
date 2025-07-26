@@ -604,7 +604,7 @@ export default function AgentDashboard() {
                           </h3>
                           <p className="text-sm text-nestie-grey-600">{transaction.description}</p>
                           <p className="text-xs text-nestie-grey-500">
-                            Property: {transaction.property_id} • {new Date(transaction.created_at).toLocaleDateString()}
+                            {transaction.tenancy_id ? `Tenancy: ${transaction.tenancy_id.slice(0, 8)}...` : 'Direct Payment'} • {new Date(transaction.created_at).toLocaleDateString()}
                           </p>
                         </div>
                         <div className="flex space-x-2">

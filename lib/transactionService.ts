@@ -1,6 +1,8 @@
+import { ReactNode } from 'react'
 import { supabase } from './supabase'
 
 export interface Transaction {
+  property_id: ReactNode
   id: string
   user_id: string
   tenancy_id?: string
